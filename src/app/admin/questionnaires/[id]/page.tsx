@@ -282,6 +282,33 @@ export default function QuestionnaireDetailPage({ params }: { params: { id: stri
     }
   }
 
+  async function handleSetActiveVersion(versionId: string) {
+    if (!confirm('Сделать эту версию активной? Все новые аудиты будут использовать эту версию.')) {
+      return;
+    }
+
+    setSaving(true);
+    try {
+      const res = await fetch(`/api/admin/questionnaires/${params.id}/active-version`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ versionId }),
+      });
+
+      if (res.ok) {
+        alert('Версия установлена как активная');
+        loadData();
+      } else {
+        alert('Ошибка при установке версии');
+      }
+    } catch (error) {
+      console.error('Error setting active version:', error);
+      alert('Ошибка при установке версии');
+    } finally {
+      setSaving(false);
+    }
+  }
+
   if (loading) {
     return <div>Загрузка...</div>;
   }
@@ -382,26 +409,51 @@ export default function QuestionnaireDetailPage({ params }: { params: { id: stri
           </div>
         </CardHeader>
         <CardContent>
-          <div className="space-y-2">
+          <div className="space-y-3">
             {questionnaire.versions.map((version) => (
               <div
                 key={version.id}
-                className={`flex items-center justify-between p-3 border rounded-lg cursor-pointer transition-colors ${
-                  selectedVersion?.id === version.id ? 'border-primary bg-primary/5' : ''
+                className={`flex items-center justify-between p-4 border rounded-lg transition-all ${
+                  selectedVersion?.id === version.id ? 'border-primary bg-primary/5' : 'hover:bg-accent/50'
                 }`}
                 onClick={() => setSelectedVersion(version)}
               >
-                <div>
-                  <div className="flex items-center gap-2">
-                    <p className="font-medium">Версия {version.versionNumber}</p>
-                    {version.isActive && <Badge>Активна</Badge>}
+                <div className="flex items-center gap-4 flex-1">
+                  {/* Simple toggle switch */}
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (!version.isActive) {
+                        handleSetActiveVersion(version.id);
+                      }
+                    }}
+                    disabled={saving}
+                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 ${
+                      version.isActive ? 'bg-primary' : 'bg-gray-200'
+                    }`}
+                  >
+                    <span
+                      className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                        version.isActive ? 'translate-x-6' : 'translate-x-1'
+                      }`}
+                    />
+                  </button>
+                  
+                  <div className="flex-1 cursor-pointer">
+                    <div className="flex items-center gap-2">
+                      <p className="font-medium">
+                        Версия {version.versionNumber}
+                      </p>
+                      {version.isActive && <Badge>Активна</Badge>}
+                    </div>
+                    {version.changeNotes && (
+                      <p className="text-sm text-muted-foreground mt-1">{version.changeNotes}</p>
+                    )}
+                    <p className="text-xs text-muted-foreground mt-1">
+                      {new Date(version.createdAt).toLocaleDateString('ru-RU')}
+                    </p>
                   </div>
-                  {version.changeNotes && (
-                    <p className="text-sm text-muted-foreground mt-1">{version.changeNotes}</p>
-                  )}
-                  <p className="text-xs text-muted-foreground mt-1">
-                    {new Date(version.createdAt).toLocaleDateString('ru-RU')}
-                  </p>
                 </div>
                 <Badge variant="outline">{version.questions.length} вопросов</Badge>
               </div>

@@ -8,8 +8,11 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { ArrowLeft, Save, CheckCircle } from 'lucide-react';
+import { ArrowLeft, Save, CheckCircle, Loader2 } from 'lucide-react';
 import Link from 'next/link';
+import { FullPageSpinner } from '@/components/spinner';
+import { FullPageError } from '@/components/error-card';
+import { useToast } from '@/hooks/use-toast';
 
 interface Question {
   id: string;
@@ -62,42 +65,57 @@ interface Audit {
 export default function AuditPage() {
   const params = useParams();
   const router = useRouter();
+  const { toast } = useToast();
+  
   const [audit, setAudit] = useState<Audit | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  
   const [answers, setAnswers] = useState<Record<string, { score: number | null; comment: string }>>({});
   const [positiveComment, setPositiveComment] = useState('');
   const [negativeComment, setNegativeComment] = useState('');
   const [isSaving, setIsSaving] = useState(false);
+  const [isCompleting, setIsCompleting] = useState(false);
 
   useEffect(() => {
-    async function loadAudit() {
-      try {
-        const response = await fetch(`/api/audits/${params.id}`);
-        const data = await response.json();
-        setAudit(data);
-
-        // Заполняем ответы
-        const answersMap: Record<string, { score: number | null; comment: string }> = {};
-        data.answers.forEach((answer: any) => {
-          const key = answer.subitemId || answer.questionId;
-          if (key) {
-            answersMap[key] = {
-              score: answer.score,
-              comment: answer.comment || '',
-            };
-          }
-        });
-        setAnswers(answersMap);
-        setPositiveComment(data.positiveComment || '');
-        setNegativeComment(data.negativeComment || '');
-      } catch (error) {
-        console.error('Error loading audit:', error);
-      }
-    }
-
-    if (params.id) {
-      loadAudit();
-    }
+    loadAudit();
   }, [params.id]);
+
+  async function loadAudit() {
+    setLoading(true);
+    setError(null);
+    
+    try {
+      const response = await fetch(`/api/audits/${params.id}`);
+      
+      if (!response.ok) {
+        throw new Error('Не удалось загрузить аудит');
+      }
+      
+      const data = await response.json();
+      setAudit(data);
+
+      // Заполняем ответы
+      const answersMap: Record<string, { score: number | null; comment: string }> = {};
+      data.answers.forEach((answer: any) => {
+        const key = answer.subitemId || answer.questionId;
+        if (key) {
+          answersMap[key] = {
+            score: answer.score,
+            comment: answer.comment || '',
+          };
+        }
+      });
+      setAnswers(answersMap);
+      setPositiveComment(data.positiveComment || '');
+      setNegativeComment(data.negativeComment || '');
+    } catch (err) {
+      console.error('Error loading audit:', err);
+      setError(err instanceof Error ? err.message : 'Произошла ошибка при загрузке');
+    } finally {
+      setLoading(false);
+    }
+  }
 
   const handleScoreChange = (key: string, score: number | null) => {
     setAnswers((prev) => ({
@@ -133,14 +151,18 @@ export default function AuditPage() {
         };
       });
 
-      await fetch(`/api/audits/${audit.id}/answers`, {
+      const answersResponse = await fetch(`/api/audits/${audit.id}/answers`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ answers: answersArray }),
       });
 
+      if (!answersResponse.ok) {
+        throw new Error('Не удалось сохранить ответы');
+      }
+
       // Сохраняем комментарии
-      await fetch(`/api/audits/${audit.id}/comments`, {
+      const commentsResponse = await fetch(`/api/audits/${audit.id}/comments`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -149,10 +171,21 @@ export default function AuditPage() {
         }),
       });
 
-      alert('Аудит сохранён');
-    } catch (error) {
-      console.error('Error saving audit:', error);
-      alert('Ошибка при сохранении');
+      if (!commentsResponse.ok) {
+        throw new Error('Не удалось сохранить комментарии');
+      }
+
+      toast({
+        title: 'Успешно сохранено',
+        description: 'Аудит успешно сохранён',
+      });
+    } catch (err) {
+      console.error('Error saving audit:', err);
+      toast({
+        title: 'Ошибка',
+        description: err instanceof Error ? err.message : 'Не удалось сохранить аудит',
+        variant: 'destructive',
+      });
     } finally {
       setIsSaving(false);
     }
@@ -163,22 +196,53 @@ export default function AuditPage() {
       return;
     }
 
-    await handleSave();
-
+    setIsCompleting(true);
+    
     try {
-      await fetch(`/api/audits/${audit?.id}/complete`, {
+      // Сначала сохраняем
+      await handleSave();
+
+      // Затем завершаем
+      const response = await fetch(`/api/audits/${audit?.id}/complete`, {
         method: 'POST',
       });
 
+      if (!response.ok) {
+        throw new Error('Не удалось завершить аудит');
+      }
+
+      toast({
+        title: 'Аудит завершён',
+        description: 'Аудит успешно завершён и отправлен компании',
+      });
+
       router.push('/analyst/audits');
-    } catch (error) {
-      console.error('Error completing audit:', error);
-      alert('Ошибка при завершении аудита');
+    } catch (err) {
+      console.error('Error completing audit:', err);
+      toast({
+        title: 'Ошибка',
+        description: err instanceof Error ? err.message : 'Не удалось завершить аудит',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsCompleting(false);
     }
   };
 
-  if (!audit) {
-    return <div className="flex items-center justify-center h-screen">Загрузка...</div>;
+  // Состояние загрузки
+  if (loading) {
+    return <FullPageSpinner text="Загрузка аудита и вводных данных..." />;
+  }
+
+  // Состояние ошибки
+  if (error || !audit) {
+    return (
+      <FullPageError 
+        title="Ошибка загрузки аудита"
+        message={error || 'Аудит не найден'}
+        onRetry={loadAudit}
+      />
+    );
   }
 
   // Группируем вопросы по категориям
@@ -191,12 +255,14 @@ export default function AuditPage() {
     return acc;
   }, {} as Record<string, Question[]>);
 
+  const isActionDisabled = isSaving || isCompleting || audit.status === 'COMPLETED';
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
           <Link href="/analyst/audits">
-            <Button variant="ghost" size="icon">
+            <Button variant="ghost" size="icon" disabled={isActionDisabled}>
               <ArrowLeft className="h-5 w-5" />
             </Button>
           </Link>
@@ -295,28 +361,42 @@ export default function AuditPage() {
                         <div key={subitem.id} className="space-y-2">
                           <Label>{subitem.text}</Label>
                           <div className="grid grid-cols-2 gap-4">
-                            <Select
-                              value={answers[subitem.id]?.score?.toString() || ''}
-                              onValueChange={(value) =>
-                                handleScoreChange(subitem.id, value ? parseFloat(value) : null)
-                              }
-                            >
-                              <SelectTrigger>
-                                <SelectValue placeholder="Выберите оценку" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {audit.version.questionnaire.scale.values.map((scaleValue) => (
-                                  <SelectItem key={scaleValue.value} value={scaleValue.value.toString()}>
-                                    {scaleValue.label} ({scaleValue.value})
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
+                            <div className="flex flex-wrap gap-2">
+                              {audit.version.questionnaire.scale.values.map((scaleValue) => {
+                                const isSelected = answers[subitem.id]?.score === scaleValue.value;
+                                const buttonVariant = isSelected ? 'default' : 'outline';
+                                let buttonColor = '';
+                                
+                                // Цвета в зависимости от значения
+                                if (scaleValue.value === 1) {
+                                  buttonColor = isSelected ? 'bg-green-600 hover:bg-green-700 text-white' : 'border-green-600 text-green-600 hover:bg-green-50';
+                                } else if (scaleValue.value === 0.5) {
+                                  buttonColor = isSelected ? 'bg-yellow-600 hover:bg-yellow-700 text-white' : 'border-yellow-600 text-yellow-600 hover:bg-yellow-50';
+                                } else if (scaleValue.value === 0) {
+                                  buttonColor = isSelected ? 'bg-red-600 hover:bg-red-700 text-white' : 'border-red-600 text-red-600 hover:bg-red-50';
+                                }
+                                
+                                return (
+                                  <Button
+                                    key={scaleValue.value}
+                                    type="button"
+                                    variant={buttonVariant}
+                                    size="sm"
+                                    onClick={() => handleScoreChange(subitem.id, scaleValue.value)}
+                                    disabled={isActionDisabled}
+                                    className={buttonColor}
+                                  >
+                                    {scaleValue.label}
+                                  </Button>
+                                );
+                              })}
+                            </div>
                             <Textarea
                               placeholder="Комментарий (необязательно)"
                               value={answers[subitem.id]?.comment || ''}
                               onChange={(e) => handleCommentChange(subitem.id, e.target.value)}
                               rows={2}
+                              disabled={isActionDisabled}
                             />
                           </div>
                         </div>
@@ -324,28 +404,42 @@ export default function AuditPage() {
                     </div>
                   ) : (
                     <div className="grid grid-cols-2 gap-4">
-                      <Select
-                        value={answers[question.id]?.score?.toString() || ''}
-                        onValueChange={(value) =>
-                          handleScoreChange(question.id, value ? parseFloat(value) : null)
-                        }
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Выберите оценку" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {audit.version.questionnaire.scale.values.map((scaleValue) => (
-                            <SelectItem key={scaleValue.value} value={scaleValue.value.toString()}>
-                              {scaleValue.label} ({scaleValue.value})
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                      <div className="flex flex-wrap gap-2">
+                        {audit.version.questionnaire.scale.values.map((scaleValue) => {
+                          const isSelected = answers[question.id]?.score === scaleValue.value;
+                          const buttonVariant = isSelected ? 'default' : 'outline';
+                          let buttonColor = '';
+                          
+                          // Цвета в зависимости от значения
+                          if (scaleValue.value === 1) {
+                            buttonColor = isSelected ? 'bg-green-600 hover:bg-green-700 text-white' : 'border-green-600 text-green-600 hover:bg-green-50';
+                          } else if (scaleValue.value === 0.5) {
+                            buttonColor = isSelected ? 'bg-yellow-600 hover:bg-yellow-700 text-white' : 'border-yellow-600 text-yellow-600 hover:bg-yellow-50';
+                          } else if (scaleValue.value === 0) {
+                            buttonColor = isSelected ? 'bg-red-600 hover:bg-red-700 text-white' : 'border-red-600 text-red-600 hover:bg-red-50';
+                          }
+                          
+                          return (
+                            <Button
+                              key={scaleValue.value}
+                              type="button"
+                              variant={buttonVariant}
+                              size="sm"
+                              onClick={() => handleScoreChange(question.id, scaleValue.value)}
+                              disabled={isActionDisabled}
+                              className={buttonColor}
+                            >
+                              {scaleValue.label}
+                            </Button>
+                          );
+                        })}
+                      </div>
                       <Textarea
                         placeholder="Комментарий (необязательно)"
                         value={answers[question.id]?.comment || ''}
                         onChange={(e) => handleCommentChange(question.id, e.target.value)}
                         rows={2}
+                        disabled={isActionDisabled}
                       />
                     </div>
                   )}
@@ -371,6 +465,7 @@ export default function AuditPage() {
                 value={positiveComment}
                 onChange={(e) => setPositiveComment(e.target.value)}
                 rows={4}
+                disabled={isActionDisabled}
               />
             </div>
             <div className="space-y-2">
@@ -381,20 +476,39 @@ export default function AuditPage() {
                 value={negativeComment}
                 onChange={(e) => setNegativeComment(e.target.value)}
                 rows={4}
+                disabled={isActionDisabled}
               />
             </div>
           </CardContent>
         </Card>
 
         <div className="flex gap-3">
-          <Button onClick={handleSave} disabled={isSaving || audit.status === 'COMPLETED'}>
-            <Save className="mr-2 h-4 w-4" />
-            {isSaving ? 'Сохранение...' : 'Сохранить'}
+          <Button onClick={handleSave} disabled={isActionDisabled}>
+            {isSaving ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Сохранение...
+              </>
+            ) : (
+              <>
+                <Save className="mr-2 h-4 w-4" />
+                Сохранить
+              </>
+            )}
           </Button>
           {audit.status === 'DRAFT' && (
-            <Button onClick={handleComplete} variant="default">
-              <CheckCircle className="mr-2 h-4 w-4" />
-              Завершить аудит
+            <Button onClick={handleComplete} variant="default" disabled={isActionDisabled}>
+              {isCompleting ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Завершение...
+                </>
+              ) : (
+                <>
+                  <CheckCircle className="mr-2 h-4 w-4" />
+                  Завершить аудит
+                </>
+              )}
             </Button>
           )}
         </div>

@@ -13,6 +13,8 @@ import { Badge } from '@/components/ui/badge';
 import { ArrowLeft, Plus, Trash2, Save } from 'lucide-react';
 import Link from 'next/link';
 import { formatDate } from '@/lib/utils';
+import { getCompanyAnalysts, assignAnalystToCompany, removeAnalystFromCompany } from '@/app/actions/company-analysts';
+import { getAnalysts } from '@/app/actions/users';
 
 type CompanyData = {
   id: string;
@@ -84,6 +86,11 @@ export default function CompanyDetailPage({ params }: { params: { id: string } }
   // Менеджеры
   const [newManagerName, setNewManagerName] = useState('');
 
+  // Аналитики
+  const [assignedAnalysts, setAssignedAnalysts] = useState<any[]>([]);
+  const [availableAnalysts, setAvailableAnalysts] = useState<any[]>([]);
+  const [selectedAnalystId, setSelectedAnalystId] = useState('');
+
   useEffect(() => {
     loadData();
   }, [params.id]);
@@ -101,10 +108,19 @@ export default function CompanyDetailPage({ params }: { params: { id: string } }
       setIsActive(companyData.isActive);
       setInputData(companyData.inputData);
 
-      // Загружаем все анкеты с информацией о включенности для этой компании
+      // Загружаем все анкеты
       const questionnairesRes = await fetch(`/api/admin/companies/${params.id}/all-questionnaires`);
       const questionnairesData = await questionnairesRes.json();
       setAllQuestionnaires(questionnairesData);
+
+      // Загружаем аналитиков
+      const [assigned, all] = await Promise.all([
+        getCompanyAnalysts(params.id),
+        getAnalysts()
+      ]);
+      setAssignedAnalysts(assigned);
+      setAvailableAnalysts(all);
+
     } catch (error) {
       console.error('Failed to load data:', error);
     } finally {
@@ -239,6 +255,54 @@ export default function CompanyDetailPage({ params }: { params: { id: string } }
       alert('Ошибка при изменении статуса менеджера');
     }
   }
+
+  async function handleAddAnalyst() {
+     if (!selectedAnalystId) {
+       alert('Выберите аналитика');
+       return;
+     }
+ 
+     setSaving(true);
+     try {
+       await assignAnalystToCompany(params.id, selectedAnalystId);
+       setSelectedAnalystId('');
+       // Перезагружаем списки
+       const [assigned, all] = await Promise.all([
+        getCompanyAnalysts(params.id),
+        getAnalysts()
+      ]);
+      setAssignedAnalysts(assigned);
+      setAvailableAnalysts(all);
+     } catch (error) {
+       console.error('Error assigning analyst:', error);
+       alert('Ошибка при назначении аналитика');
+     } finally {
+       setSaving(false);
+     }
+   }
+ 
+   async function handleRemoveAnalyst(analystId: string) {
+     if (!confirm('Убрать доступ для этого аналитика?')) {
+       return;
+     }
+ 
+     setSaving(true);
+     try {
+       await removeAnalystFromCompany(params.id, analystId);
+       // Перезагружаем списки
+       const [assigned, all] = await Promise.all([
+        getCompanyAnalysts(params.id),
+        getAnalysts()
+      ]);
+      setAssignedAnalysts(assigned);
+      setAvailableAnalysts(all);
+     } catch (error) {
+       console.error('Error removing analyst:', error);
+       alert('Ошибка при удалении аналитика');
+     } finally {
+       setSaving(false);
+     }
+   }
 
   if (loading) {
     return <div>Загрузка...</div>;
@@ -462,6 +526,70 @@ export default function CompanyDetailPage({ params }: { params: { id: string } }
         </CardContent>
       </Card>
 
+      {/* Ответственные аналитики */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Ответственные аналитики</CardTitle>
+          <CardDescription>
+            Управление аналитиками, которые проводят аудиты для этой компании
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex gap-2">
+            <div className="flex-1">
+              <Select
+                value={selectedAnalystId}
+                onValueChange={setSelectedAnalystId}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Выберите аналитика" />
+                </SelectTrigger>
+                <SelectContent>
+                  {availableAnalysts
+                    .filter(analyst => !assignedAnalysts.find(a => a.id === analyst.id))
+                    .map(analyst => (
+                      <SelectItem key={analyst.id} value={analyst.id}>
+                        {analyst.name} ({analyst.email})
+                      </SelectItem>
+                    ))
+                  }
+                  {availableAnalysts.length === 0 && <SelectItem value="none" disabled>Нет доступных аналитиков</SelectItem>}
+                </SelectContent>
+              </Select>
+            </div>
+            <Button onClick={handleAddAnalyst} disabled={saving || !selectedAnalystId}>
+              <Plus className="mr-2 h-4 w-4" />
+              Назначить
+            </Button>
+          </div>
+
+          <div className="space-y-2">
+            {assignedAnalysts.map((analyst) => (
+              <div key={analyst.id} className="flex items-center justify-between p-3 border rounded-lg">
+                <div>
+                  <p className="font-medium">{analyst.name}</p>
+                  <p className="text-sm text-muted-foreground">{analyst.email}</p>
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="text-red-500 hover:text-red-700 hover:bg-red-50"
+                  onClick={() => handleRemoveAnalyst(analyst.id)}
+                >
+                  <Trash2 className="h-4 w-4 mr-2" />
+                  Убрать доступ
+                </Button>
+              </div>
+            ))}
+            {assignedAnalysts.length === 0 && (
+              <p className="text-sm text-muted-foreground text-center py-4">
+                Нет назначенных аналитиков
+              </p>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+
       {/* Доступные анкеты */}
       <Card>
         <CardHeader>
@@ -499,10 +627,20 @@ export default function CompanyDetailPage({ params }: { params: { id: string } }
       {/* Пользователи */}
       <Card>
         <CardHeader>
-          <CardTitle>Пользователи компании</CardTitle>
-          <CardDescription>
-            Всего: {company.users?.length || 0}
-          </CardDescription>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle>Пользователи компании</CardTitle>
+              <CardDescription>
+                Всего: {company.users?.length || 0}
+              </CardDescription>
+            </div>
+            <Link href={`/admin/users/new?type=company&companyId=${company.id}`}>
+              <Button size="sm" variant="outline">
+                <Plus className="mr-2 h-4 w-4" />
+                Добавить
+              </Button>
+            </Link>
+          </div>
         </CardHeader>
         <CardContent>
           <div className="space-y-2">

@@ -14,23 +14,19 @@ export async function GET(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // Получаем активную версию анкеты
+    // Получаем анкету с её активной версией через currentVersionId
     const questionnaire = await prisma.questionnaire.findUnique({
       where: { id: params.id },
-      include: {
-        versions: {
-          where: { isActive: true },
-          orderBy: { versionNumber: 'desc' },
-          take: 1,
-        },
+      select: {
+        currentVersionId: true,
       },
     });
 
-    if (!questionnaire || !questionnaire.versions[0]) {
+    if (!questionnaire || !questionnaire.currentVersionId) {
       return NextResponse.json([]);
     }
 
-    const fields = await getVersionMetadataFields(questionnaire.versions[0].id);
+    const fields = await getVersionMetadataFields(questionnaire.currentVersionId);
     return NextResponse.json(fields);
   } catch (error) {
     console.error('Error fetching metadata fields:', error);

@@ -1,241 +1,315 @@
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
-import { getAudits } from '@/app/actions/audits';
-import { getManagers } from '@/app/actions/managers';
+'use client';
+
+import { useEffect, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
+import { Calendar, User, FileText, ChevronLeft, ChevronRight } from 'lucide-react';
 import Link from 'next/link';
-import { formatDateTime } from '@/lib/utils';
-import { FileDown, TrendingUp, TrendingDown, Users } from 'lucide-react';
+import { format, subMonths } from 'date-fns';
 
-export default async function ReportsPage() {
-  const session = await getServerSession(authOptions);
+interface Audit {
+  id: string;
+  totalScore: number;
+  auditDate: string;
+  completedAt: string;
+  manager: {
+    id: string;
+    name: string;
+  } | null;
+  version: {
+    questionnaire: {
+      id: string;
+      name: string;
+      type: string;
+    };
+  };
+}
 
-  if (!session?.user.companyId) {
-    return <div>Компания не найдена</div>;
+interface AuditsResponse {
+  audits: Audit[];
+  total: number;
+  page: number;
+  pageSize: number;
+  totalPages: number;
+}
+
+export default function ReportsPage() {
+  const searchParams = useSearchParams();
+  const [data, setData] = useState<AuditsResponse | null>(null);
+  const [loading, setLoading] = useState(true);
+  
+  // Получаем параметры из URL или используем дефолтные
+  const [startDate, setStartDate] = useState(
+    searchParams.get('startDate') || format(subMonths(new Date(), 3), 'yyyy-MM-dd')
+  );
+  const [endDate, setEndDate] = useState(
+    searchParams.get('endDate') || format(new Date(Date.now() + 86400000), 'yyyy-MM-dd')
+  );
+  const [selectedManager, setSelectedManager] = useState<string>(
+    searchParams.get('managerId') || 'all'
+  );
+  const [selectedQuestionnaire, setSelectedQuestionnaire] = useState<string>(
+    searchParams.get('questionnaireId') || 'all'
+  );
+  const [page, setPage] = useState(1);
+  const [managers, setManagers] = useState<Array<{ id: string; name: string }>>([]);
+  const [questionnaires, setQuestionnaires] = useState<Array<{ id: string; name: string }>>([]);
+
+  useEffect(() => {
+    loadFilters();
+  }, []);
+
+  useEffect(() => {
+    loadAudits();
+  }, [startDate, endDate, selectedManager, selectedQuestionnaire, page]);
+
+  async function loadFilters() {
+    try {
+      const response = await fetch('/api/company/stats');
+      const stats = await response.json();
+      setManagers(stats.managers || []);
+      setQuestionnaires(stats.questionnaires || []);
+    } catch (error) {
+      console.error('Failed to load filters:', error);
+    }
   }
 
-  // Получаем только завершённые аудиты
-  const audits = await getAudits({
-    companyId: session.user.companyId,
-    status: 'COMPLETED',
-  });
+  async function loadAudits() {
+    setLoading(true);
+    try {
+      const params = new URLSearchParams();
+      if (startDate) params.append('startDate', startDate);
+      if (endDate) params.append('endDate', endDate);
+      if (selectedManager !== 'all') params.append('managerId', selectedManager);
+      if (selectedQuestionnaire !== 'all') params.append('questionnaireId', selectedQuestionnaire);
+      params.append('page', page.toString());
+      params.append('pageSize', '10'); // Уменьшил до 10 для лучшей пагинации
 
-  // Получаем менеджеров компании
-  const managers = await getManagers(session.user.companyId);
-
-  // Группируем аудиты по менеджерам
-  const auditsByManager = audits.reduce((acc, audit) => {
-    const managerId = audit.managerId || 'unassigned';
-    if (!acc[managerId]) {
-      acc[managerId] = [];
+      const response = await fetch(`/api/company/audits?${params.toString()}`);
+      const result = await response.json();
+      setData(result);
+    } catch (error) {
+      console.error('Failed to load audits:', error);
+    } finally {
+      setLoading(false);
     }
-    acc[managerId].push(audit);
-    return acc;
-  }, {} as Record<string, typeof audits>);
+  }
 
-  // Вычисляем статистику для каждого менеджера
-  const managerStats = managers.map((manager) => {
-    const managerAudits = auditsByManager[manager.id] || [];
-    const totalScore = managerAudits.reduce((sum, audit) => sum + (audit.totalScore || 0), 0);
-    const avgScore = managerAudits.length > 0 ? totalScore / managerAudits.length : 0;
+  function getScoreBadgeVariant(score: number) {
+    if (score >= 90) return 'default';
+    if (score >= 70) return 'secondary';
+    return 'destructive';
+  }
 
-    // Вычисляем тренд (сравниваем последние 2 аудита)
-    let trend: 'up' | 'down' | 'neutral' = 'neutral';
-    if (managerAudits.length >= 2) {
-      const sortedAudits = [...managerAudits].sort((a, b) =>
-        new Date(b.auditDate).getTime() - new Date(a.auditDate).getTime()
-      );
-      const latestScore = sortedAudits[0].totalScore || 0;
-      const previousScore = sortedAudits[1].totalScore || 0;
-      trend = latestScore > previousScore ? 'up' : latestScore < previousScore ? 'down' : 'neutral';
-    }
+  function getScoreLabel(score: number) {
+    if (score >= 90) return 'Отлично';
+    if (score >= 70) return 'Хорошо';
+    if (score >= 50) return 'Средне';
+    return 'Плохо';
+  }
 
-    return {
-      manager,
-      audits: managerAudits,
-      totalAudits: managerAudits.length,
-      avgScore: Math.round(avgScore * 100) / 100,
-      trend,
-    };
-  });
-
-  // Аудиты без менеджера
-  const unassignedAudits = auditsByManager['unassigned'] || [];
-  const totalAudits = audits.length;
+  if (loading && !data) {
+    return <div className="flex items-center justify-center h-screen">Загрузка...</div>;
+  }
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold">Отчёты аудита</h1>
-          <p className="text-muted-foreground">
-            Результаты аудитов качества коммуникаций по менеджерам
-          </p>
-        </div>
-        <Card className="w-fit">
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-2">
-              <Users className="h-5 w-5 text-muted-foreground" />
-              <div>
-                <p className="text-sm text-muted-foreground">Всего аудитов</p>
-                <p className="text-2xl font-bold">{totalAudits}</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+      <div>
+        <h1 className="text-3xl font-bold">Отчеты</h1>
+        <p className="text-muted-foreground">Все аудиты и детальные отчеты</p>
       </div>
 
-      {/* Статистика и отчеты по менеджерам */}
-      {managerStats.map((stat) => (
-        <Card key={stat.manager.id}>
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <div>
-                <CardTitle>{stat.manager.name}</CardTitle>
-                <CardDescription>
-                  Менеджер компании
-                </CardDescription>
-              </div>
-              <div className="flex gap-4">
-                <div className="text-center">
-                  <p className="text-sm text-muted-foreground">Аудитов</p>
-                  <p className="text-2xl font-bold">{stat.totalAudits}</p>
-                </div>
-                <div className="text-center">
-                  <p className="text-sm text-muted-foreground">Средний балл</p>
-                  <div className="flex items-center gap-2">
-                    <p className="text-2xl font-bold">{stat.avgScore}%</p>
-                    {stat.trend === 'up' && (
-                      <TrendingUp className="h-5 w-5 text-green-500" />
-                    )}
-                    {stat.trend === 'down' && (
-                      <TrendingDown className="h-5 w-5 text-red-500" />
-                    )}
+      {/* Фильтры */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Фильтры</CardTitle>
+          <CardDescription>Настройте параметры для поиска отчетов</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div>
+              <Label htmlFor="startDate">Начало периода</Label>
+              <Input
+                id="startDate"
+                type="date"
+                value={startDate}
+                onChange={(e) => {
+                  setStartDate(e.target.value);
+                  setPage(1); // Сброс на первую страницу при изменении фильтра
+                }}
+              />
+            </div>
+            <div>
+              <Label htmlFor="endDate">Конец периода</Label>
+              <Input
+                id="endDate"
+                type="date"
+                value={endDate}
+                onChange={(e) => {
+                  setEndDate(e.target.value);
+                  setPage(1);
+                }}
+              />
+            </div>
+            <div>
+              <Label htmlFor="manager">Менеджер</Label>
+              <Select value={selectedManager} onValueChange={(value) => {
+                setSelectedManager(value);
+                setPage(1);
+              }}>
+                <SelectTrigger id="manager">
+                  <SelectValue placeholder="Все менеджеры" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Все менеджеры</SelectItem>
+                  {managers.map((manager) => (
+                    <SelectItem key={manager.id} value={manager.id}>
+                      {manager.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label htmlFor="questionnaire">Анкета</Label>
+              <Select value={selectedQuestionnaire} onValueChange={(value) => {
+                setSelectedQuestionnaire(value);
+                setPage(1);
+              }}>
+                <SelectTrigger id="questionnaire">
+                  <SelectValue placeholder="Все анкеты" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Все анкеты</SelectItem>
+                  {questionnaires.map((q) => (
+                    <SelectItem key={q.id} value={q.id}>
+                      {q.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Список аудитов */}
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle>Найдено аудитов: {data?.total || 0}</CardTitle>
+              <CardDescription>
+                Страница {data?.page || 1} из {data?.totalPages || 1}
+              </CardDescription>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-3">
+            {data?.audits.map((audit) => (
+              <Link key={audit.id} href={`/company/reports/${audit.id}`}>
+                <div className="flex items-center justify-between p-4 border rounded-lg hover:bg-accent transition-colors cursor-pointer">
+                  <div className="flex-1 space-y-1">
+                    <div className="flex items-center gap-2">
+                      <FileText className="h-4 w-4 text-muted-foreground" />
+                      <p className="font-medium">{audit.version.questionnaire.name}</p>
+                      <Badge variant="outline">{audit.version.questionnaire.type}</Badge>
+                    </div>
+                    <div className="flex items-center gap-4 text-sm text-muted-foreground">
+                      {audit.manager && (
+                        <div className="flex items-center gap-1">
+                          <User className="h-3 w-3" />
+                          <span>{audit.manager.name}</span>
+                        </div>
+                      )}
+                      <div className="flex items-center gap-1">
+                        <Calendar className="h-3 w-3" />
+                        <span>{format(new Date(audit.auditDate), 'dd.MM.yyyy')}</span>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <div className="text-right">
+                      <p className="text-2xl font-bold">{audit.totalScore?.toFixed(1) || 0}%</p>
+                      <p className="text-xs text-muted-foreground">итоговый балл</p>
+                    </div>
+                    <Badge variant={getScoreBadgeVariant(audit.totalScore || 0)}>
+                      {getScoreLabel(audit.totalScore || 0)}
+                    </Badge>
                   </div>
                 </div>
-              </div>
-            </div>
-          </CardHeader>
-          <CardContent>
-            {stat.audits.length > 0 ? (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Тип аудита</TableHead>
-                    <TableHead>Дата проведения</TableHead>
-                    <TableHead>Балл</TableHead>
-                    <TableHead>Аналитик</TableHead>
-                    <TableHead>Действия</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {stat.audits.map((audit) => (
-                    <TableRow key={audit.id}>
-                      <TableCell className="font-medium">
-                        {audit.version.questionnaire.name}
-                      </TableCell>
-                      <TableCell>{formatDateTime(audit.auditDate)}</TableCell>
-                      <TableCell>
-                        <Badge variant={
-                          (audit.totalScore || 0) >= 80 ? 'default' :
-                          (audit.totalScore || 0) >= 60 ? 'secondary' : 'destructive'
-                        }>
-                          {audit.totalScore || 0}%
-                        </Badge>
-                      </TableCell>
-                      <TableCell>{audit.analyst.name}</TableCell>
-                      <TableCell>
-                        <div className="flex gap-2">
-                          <Link href={`/company/reports/${audit.id}`}>
-                            <Button variant="outline" size="sm">
-                              Просмотр
-                            </Button>
-                          </Link>
-                          <Button variant="ghost" size="sm">
-                            <FileDown className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            ) : (
-              <p className="text-center text-muted-foreground py-8">
-                Нет завершённых аудитов для этого менеджера
+              </Link>
+            ))}
+            {data?.audits.length === 0 && (
+              <p className="text-center text-muted-foreground py-12">
+                Нет аудитов за выбранный период
               </p>
             )}
-          </CardContent>
-        </Card>
-      ))}
+          </div>
 
-      {/* Аудиты без менеджера */}
-      {unassignedAudits.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Аудиты без менеджера</CardTitle>
-            <CardDescription>
-              Аудиты, не привязанные к конкретному менеджеру ({unassignedAudits.length})
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Тип аудита</TableHead>
-                  <TableHead>Дата проведения</TableHead>
-                  <TableHead>Балл</TableHead>
-                  <TableHead>Аналитик</TableHead>
-                  <TableHead>Действия</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {unassignedAudits.map((audit) => (
-                  <TableRow key={audit.id}>
-                    <TableCell className="font-medium">
-                      {audit.version.questionnaire.name}
-                    </TableCell>
-                    <TableCell>{formatDateTime(audit.auditDate)}</TableCell>
-                    <TableCell>
-                      <Badge variant={
-                        (audit.totalScore || 0) >= 80 ? 'default' :
-                        (audit.totalScore || 0) >= 60 ? 'secondary' : 'destructive'
-                      }>
-                        {audit.totalScore || 0}%
-                      </Badge>
-                    </TableCell>
-                    <TableCell>{audit.analyst.name}</TableCell>
-                    <TableCell>
-                      <div className="flex gap-2">
-                        <Link href={`/company/reports/${audit.id}`}>
-                          <Button variant="outline" size="sm">
-                            Просмотр
-                          </Button>
-                        </Link>
-                        <Button variant="ghost" size="sm">
-                          <FileDown className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
-      )}
-
-      {totalAudits === 0 && (
-        <Card>
-          <CardContent className="text-center py-12 text-muted-foreground">
-            <Users className="h-12 w-12 mx-auto mb-4 opacity-50" />
-            <p className="text-lg">Нет завершённых аудитов</p>
-          </CardContent>
-        </Card>
-      )}
+          {/* Пагинация */}
+          {data && data.totalPages > 1 && (
+            <div className="flex items-center justify-between mt-6 pt-6 border-t">
+              <div className="text-sm text-muted-foreground">
+                Показано {((data.page - 1) * data.pageSize) + 1}-{Math.min(data.page * data.pageSize, data.total)} из {data.total}
+              </div>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setPage(p => Math.max(1, p - 1))}
+                  disabled={page === 1 || loading}
+                >
+                  <ChevronLeft className="h-4 w-4 mr-1" />
+                  Назад
+                </Button>
+                <div className="flex items-center gap-1">
+                  {Array.from({ length: Math.min(5, data.totalPages) }, (_, i) => {
+                    let pageNum;
+                    if (data.totalPages <= 5) {
+                      pageNum = i + 1;
+                    } else if (page <= 3) {
+                      pageNum = i + 1;
+                    } else if (page >= data.totalPages - 2) {
+                      pageNum = data.totalPages - 4 + i;
+                    } else {
+                      pageNum = page - 2 + i;
+                    }
+                    
+                    return (
+                      <Button
+                        key={pageNum}
+                        variant={page === pageNum ? 'default' : 'outline'}
+                        size="sm"
+                        onClick={() => setPage(pageNum)}
+                        disabled={loading}
+                        className="w-10"
+                      >
+                        {pageNum}
+                      </Button>
+                    );
+                  })}
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setPage(p => Math.min(data.totalPages, p + 1))}
+                  disabled={page === data.totalPages || loading}
+                >
+                  Вперед
+                  <ChevronRight className="h-4 w-4 ml-1" />
+                </Button>
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }

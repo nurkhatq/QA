@@ -8,6 +8,8 @@ import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Loader2 } from 'lucide-react';
+import { Spinner } from '@/components/spinner';
 
 export default function NewAuditPage() {
   const router = useRouter();
@@ -20,6 +22,7 @@ export default function NewAuditPage() {
   const [selectedQuestionnaire, setSelectedQuestionnaire] = useState('');
   const [metadata, setMetadata] = useState<Record<string, any>>({});
   const [isLoading, setIsLoading] = useState(false);
+  const [isLoadingMetadata, setIsLoadingMetadata] = useState(false);
 
   useEffect(() => {
     async function loadData() {
@@ -83,6 +86,7 @@ export default function NewAuditPage() {
         return;
       }
 
+      setIsLoadingMetadata(true);
       try {
         const res = await fetch(`/api/analyst/questionnaires/${selectedQuestionnaire}/metadata`);
         if (res.ok) {
@@ -91,6 +95,8 @@ export default function NewAuditPage() {
         }
       } catch (error) {
         console.error('Failed to load metadata fields:', error);
+      } finally {
+        setIsLoadingMetadata(false);
       }
     }
     loadMetadataFields();
@@ -217,8 +223,18 @@ export default function NewAuditPage() {
               </Select>
             </div>
 
+            {/* Индикатор загрузки вводных данных */}
+            {isLoadingMetadata && (
+              <div className="flex items-center justify-center py-8 border rounded-lg bg-muted/50">
+                <div className="flex flex-col items-center gap-3">
+                  <Spinner size="md" />
+                  <p className="text-sm text-muted-foreground">Загрузка вводных данных...</p>
+                </div>
+              </div>
+            )}
+
             {/* Вводные данные аудита (метаданные) */}
-            {metadataFields.length > 0 && (
+            {!isLoadingMetadata && metadataFields.length > 0 && (
               <div className="space-y-3 pt-4 border-t">
                 <div>
                   <h3 className="text-lg font-semibold">Вводные данные аудита</h3>
@@ -279,10 +295,17 @@ export default function NewAuditPage() {
             )}
 
             <div className="flex gap-3 pt-4">
-              <Button type="submit" disabled={!selectedCompany || !selectedQuestionnaire || isLoading}>
-                {isLoading ? 'Создание...' : 'Создать аудит'}
+              <Button type="submit" disabled={!selectedCompany || !selectedQuestionnaire || isLoading || isLoadingMetadata}>
+                {isLoading ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Создание...
+                  </>
+                ) : (
+                  'Создать аудит'
+                )}
               </Button>
-              <Button type="button" variant="outline" onClick={() => router.back()}>
+              <Button type="button" variant="outline" onClick={() => router.back()} disabled={isLoading}>
                 Отмена
               </Button>
             </div>

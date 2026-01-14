@@ -7,13 +7,19 @@ import { revalidatePath } from 'next/cache';
 import bcrypt from 'bcryptjs';
 import { UserRole } from '@prisma/client';
 
-export async function getUsers() {
+export async function getUsers(roles?: UserRole[]) {
   const session = await getServerSession(authOptions);
   if (!session || session.user.role !== 'ADMIN') {
     throw new Error('Unauthorized');
   }
 
+  const where: any = {};
+  if (roles && roles.length > 0) {
+    where.role = { in: roles };
+  }
+
   const users = await prisma.user.findMany({
+    where,
     orderBy: { createdAt: 'desc' },
     include: {
       company: {
@@ -22,10 +28,23 @@ export async function getUsers() {
           name: true,
         },
       },
+      assignedCompanies: {
+        include: {
+          company: true,
+        },
+      },
     },
   });
 
   return users;
+}
+
+export async function getEmployees() {
+  return getUsers(['ADMIN', 'ANALYST']);
+}
+
+export async function getCompanyUsers() {
+  return getUsers(['COMPANY']);
 }
 
 export async function getUser(id: string) {

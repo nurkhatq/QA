@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -14,11 +14,15 @@ import { getCompanies } from '@/app/actions/companies';
 
 export default function NewUserPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const isEmployeeMode = searchParams.get('type') === 'employee';
+  const preselectedCompanyId = searchParams.get('companyId');
+
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
-  const [role, setRole] = useState('ANALYST');
-  const [companyId, setCompanyId] = useState('');
+  const [role, setRole] = useState(isEmployeeMode ? 'ANALYST' : 'COMPANY');
+  const [companyId, setCompanyId] = useState(preselectedCompanyId || '');
   const [companies, setCompanies] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(false);
 
@@ -43,7 +47,11 @@ export default function NewUserPage() {
         companyId: role === 'COMPANY' ? companyId : undefined,
       });
 
-      router.push('/admin/users');
+      if (preselectedCompanyId) {
+        router.push(`/admin/companies/${preselectedCompanyId}`);
+      } else {
+        router.push(isEmployeeMode ? '/admin/employees' : '/admin/users');
+      }
     } catch (error: any) {
       console.error('Error creating user:', error);
       alert(error.message || 'Ошибка при создании пользователя');
@@ -61,8 +69,8 @@ export default function NewUserPage() {
           </Button>
         </Link>
         <div>
-          <h1 className="text-3xl font-bold">Новый пользователь</h1>
-          <p className="text-muted-foreground">Добавление нового пользователя в систему</p>
+          <h1 className="text-3xl font-bold">{isEmployeeMode ? 'Новый сотрудник' : 'Новый пользователь'}</h1>
+          <p className="text-muted-foreground">{isEmployeeMode ? 'Добавление администратора или аналитика' : 'Добавление пользователя компании'}</p>
         </div>
       </div>
 
@@ -118,9 +126,14 @@ export default function NewUserPage() {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="ADMIN">Администратор</SelectItem>
-                  <SelectItem value="ANALYST">Аналитик</SelectItem>
-                  <SelectItem value="COMPANY">Компания</SelectItem>
+                  {isEmployeeMode ? (
+                    <>
+                      <SelectItem value="ANALYST">Аналитик</SelectItem>
+                      <SelectItem value="ADMIN">Администратор</SelectItem>
+                    </>
+                  ) : (
+                    <SelectItem value="COMPANY">Компания</SelectItem>
+                  )}
                 </SelectContent>
               </Select>
             </div>

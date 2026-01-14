@@ -16,11 +16,6 @@ export async function getCompanyQuestionnaires(companyId: string) {
       questionnaire: {
         include: {
           scale: true,
-          versions: {
-            where: { isActive: true },
-            orderBy: { versionNumber: 'desc' },
-            take: 1,
-          },
         },
       },
     },
@@ -34,7 +29,7 @@ export async function getCompanyQuestionnaires(companyId: string) {
     questionnaireType: cq.questionnaire.type,
     questionnaireDescription: cq.questionnaire.description,
     isEnabled: cq.isEnabled,
-    currentVersionId: cq.questionnaire.versions[0]?.id,
+    currentVersionId: cq.questionnaire.currentVersionId, // Используем currentVersionId из анкеты
     createdAt: cq.createdAt,
   }));
 }

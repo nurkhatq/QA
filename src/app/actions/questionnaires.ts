@@ -65,7 +65,20 @@ export async function getQuestionnaire(id: string) {
     },
   });
 
-  return questionnaire;
+  if (!questionnaire) {
+    return null;
+  }
+
+  // Добавляем флаг isActive для каждой версии на основе currentVersionId
+  const versionsWithActiveFlag = questionnaire.versions.map(version => ({
+    ...version,
+    isActive: version.id === questionnaire.currentVersionId,
+  }));
+
+  return {
+    ...questionnaire,
+    versions: versionsWithActiveFlag,
+  };
 }
 
 export async function getQuestionnaireVersion(versionId: string) {
@@ -136,23 +149,6 @@ export async function getCompanyQuestionnaires(companyId: string) {
           },
         },
       },
-      versions: {
-        where: { isActive: true },
-        orderBy: { versionNumber: 'desc' },
-        take: 1,
-        include: {
-          questions: {
-            where: { isActive: true },
-            orderBy: { order: 'asc' },
-            include: {
-              subitems: {
-                where: { isActive: true },
-                orderBy: { order: 'asc' },
-              },
-            },
-          },
-        },
-      },
     },
     orderBy: { name: 'asc' },
   });
@@ -186,7 +182,6 @@ export async function createQuestionnaire(data: {
     data: {
       questionnaireId: questionnaire.id,
       versionNumber: 1,
-      isActive: true,
       changeNotes: 'Первоначальная версия',
     },
   });
@@ -232,7 +227,6 @@ export async function createQuestionnaireVersion(
     data: {
       questionnaireId,
       versionNumber: currentVersion.versionNumber + 1,
-      isActive: true,
       changeNotes: changeNotes || 'Новая версия',
     },
   });

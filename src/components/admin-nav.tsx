@@ -3,12 +3,13 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { signOut } from 'next-auth/react';
-import { Building2, Users, FileText, LogOut } from 'lucide-react';
+import { Building2, Users, FileText, LogOut, Shield } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 
 const navigation = [
   { name: 'Компании', href: '/admin/companies', icon: Building2 },
+  { name: 'Сотрудники', href: '/admin/employees', icon: Shield },
   { name: 'Пользователи', href: '/admin/users', icon: Users },
   { name: 'Анкеты', href: '/admin/questionnaires', icon: FileText },
 ];

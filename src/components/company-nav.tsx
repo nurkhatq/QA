@@ -3,11 +3,13 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { signOut } from 'next-auth/react';
-import { FileBarChart, LogOut } from 'lucide-react';
+import { BarChart3, Users, FileBarChart, LogOut } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 
 const navigation = [
+  { name: 'Дашборд', href: '/company/dashboard', icon: BarChart3 },
+  { name: 'Менеджеры', href: '/company/managers', icon: Users },
   { name: 'Отчёты', href: '/company/reports', icon: FileBarChart },
 ];
 

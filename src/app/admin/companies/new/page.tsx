@@ -25,13 +25,13 @@ export default function NewCompanyPage() {
     setIsLoading(true);
 
     try {
-      await createCompany({
+      const newCompany = await createCompany({
         name,
         description: description || undefined,
         connectionDate: new Date(connectionDate),
       });
 
-      router.push('/admin/companies');
+      router.push(`/admin/companies/${newCompany.id}`);
     } catch (error) {
       console.error('Error creating company:', error);
       alert('Ошибка при создании компании');

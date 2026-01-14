@@ -1,4 +1,4 @@
-import { getCompanyUsers } from '@/app/actions/users';
+import { getEmployees } from '@/app/actions/users';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -12,29 +12,29 @@ const roleLabels: Record<string, string> = {
   COMPANY: 'Компания',
 };
 
-export default async function UsersPage() {
-  const users = await getCompanyUsers();
+export default async function EmployeesPage() {
+  const users = await getEmployees();
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold">Пользователи</h1>
-          <p className="text-muted-foreground">Управление пользователями системы</p>
+          <h1 className="text-3xl font-bold">Сотрудники</h1>
+          <p className="text-muted-foreground">Управление сотрудниками системы (Администраторы и Аналитики)</p>
         </div>
-        <Link href="/admin/users/new">
+        <Link href="/admin/users/new?type=employee">
           <Button>
             <Plus className="mr-2 h-4 w-4" />
-            Добавить пользователя
+            Добавить сотрудника
           </Button>
         </Link>
       </div>
 
       <Card>
         <CardHeader>
-          <CardTitle>Все пользователи</CardTitle>
+          <CardTitle>Все сотрудники</CardTitle>
           <CardDescription>
-            Всего пользователей: {users.length}
+            Всего сотрудников: {users.length}
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -44,7 +44,7 @@ export default async function UsersPage() {
                 <TableHead>Имя</TableHead>
                 <TableHead>Email</TableHead>
                 <TableHead>Роль</TableHead>
-                <TableHead>Компания</TableHead>
+                <TableHead>Назначенные компании</TableHead>
                 <TableHead>Статус</TableHead>
                 <TableHead>Действия</TableHead>
               </TableRow>
@@ -58,13 +58,19 @@ export default async function UsersPage() {
                     <Badge variant="outline">{roleLabels[user.role]}</Badge>
                   </TableCell>
                   <TableCell>
-                    {user.company ? (
-                      <Link
-                        href={`/admin/companies/${user.company.id}`}
-                        className="text-primary hover:underline"
-                      >
-                        {user.company.name}
-                      </Link>
+                    {(user.assignedCompanies && user.assignedCompanies.length > 0) ? (
+                      <div className="flex flex-wrap gap-1">
+                        {user.assignedCompanies.map((ac) => (
+                          <Link 
+                            key={ac.company.id}
+                            href={`/admin/companies/${ac.company.id}`}
+                          >
+                            <Badge variant="secondary" className="hover:bg-secondary/80">
+                              {ac.company.name}
+                            </Badge>
+                          </Link>
+                        ))}
+                      </div>
                     ) : (
                       '-'
                     )}
@@ -86,7 +92,7 @@ export default async function UsersPage() {
               {users.length === 0 && (
                 <TableRow>
                   <TableCell colSpan={6} className="text-center text-muted-foreground">
-                    Нет пользователей
+                    Нет сотрудников
                   </TableCell>
                 </TableRow>
               )}

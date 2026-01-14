@@ -24,6 +24,7 @@ model User {
   @@index([email])
   @@index([role])
   @@index([companyId])
+  assignedCompanies CompanyAnalyst[]
 }
 
 model Company {
@@ -39,8 +40,23 @@ model Company {
   questionnaires CompanyQuestionnaire[]
   managers       Manager[]
   users          User[]
+  analysts       CompanyAnalyst[]
 
   @@index([isActive])
+}
+
+model CompanyAnalyst {
+  id        String   @id @default(cuid())
+  companyId String
+  userId    String
+  createdAt DateTime @default(now())
+  
+  company   Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, userId])
+  @@index([companyId])
+  @@index([userId])
 }
 
 model Manager {
