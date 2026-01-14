@@ -1,0 +1,288 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String         @id @default(cuid())
+  email         String         @unique
+  password      String
+  name          String
+  role          UserRole
+  isActive      Boolean        @default(true)
+  companyId     String?
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  auditsCreated Audit[]
+  auditHistory  AuditHistory[]
+  company       Company?       @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([email])
+  @@index([role])
+  @@index([companyId])
+}
+
+model Company {
+  id             String                 @id @default(cuid())
+  name           String
+  description    String?
+  connectionDate DateTime               @default(now())
+  isActive       Boolean                @default(true)
+  createdAt      DateTime               @default(now())
+  updatedAt      DateTime               @updatedAt
+  audits         Audit[]
+  inputData      CompanyInputData[]
+  questionnaires CompanyQuestionnaire[]
+  managers       Manager[]
+  users          User[]
+
+  @@index([isActive])
+}
+
+model Manager {
+  id        String   @id @default(cuid())
+  name      String
+  companyId String
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  audits    Audit[]
+  company   Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([companyId])
+  @@index([isActive])
+}
+
+model CompanyInputData {
+  id             String   @id @default(cuid())
+  companyId      String
+  fieldName      String
+  fieldValue     String
+  isConfidential Boolean  @default(false)
+  order          Int      @default(0)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  company        Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([companyId])
+}
+
+model ScoreScale {
+  id             String            @id @default(cuid())
+  name           String
+  description    String?
+  isDefault      Boolean           @default(false)
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+  questionnaires Questionnaire[]
+  values         ScoreScaleValue[]
+
+  @@index([isDefault])
+}
+
+model ScoreScaleValue {
+  id        String     @id @default(cuid())
+  scaleId   String
+  value     Float
+  label     String
+  order     Int
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+  scale     ScoreScale @relation(fields: [scaleId], references: [id], onDelete: Cascade)
+
+  @@index([scaleId])
+}
+
+model Questionnaire {
+  id               String                 @id @default(cuid())
+  name             String
+  description      String?
+  type             String
+  isActive         Boolean                @default(true)
+  currentVersionId String?
+  scaleId          String
+  createdAt        DateTime               @default(now())
+  updatedAt        DateTime               @updatedAt
+  companies        CompanyQuestionnaire[]
+  scale            ScoreScale             @relation(fields: [scaleId], references: [id])
+  versions         QuestionnaireVersion[]
+
+  @@index([isActive])
+  @@index([type])
+}
+
+model QuestionnaireVersion {
+  id              String                       @id @default(cuid())
+  questionnaireId String
+  versionNumber   Int
+  isActive        Boolean                      @default(true)
+  changeNotes     String?
+  createdAt       DateTime                     @default(now())
+  updatedAt       DateTime                     @updatedAt
+  audits          Audit[]
+  questions       Question[]
+  metadataFields  QuestionnaireMetadataField[]
+  questionnaire   Questionnaire                @relation(fields: [questionnaireId], references: [id], onDelete: Cascade)
+
+  @@unique([questionnaireId, versionNumber])
+  @@index([questionnaireId])
+  @@index([isActive])
+}
+
+model QuestionnaireMetadataField {
+  id         String               @id @default(cuid())
+  fieldName  String
+  fieldType  String
+  isRequired Boolean              @default(false)
+  order      Int                  @default(0)
+  options    String?
+  createdAt  DateTime             @default(now())
+  updatedAt  DateTime             @updatedAt
+  versionId  String
+  version    QuestionnaireVersion @relation(fields: [versionId], references: [id], onDelete: Cascade)
+
+  @@index([versionId])
+  @@index([order])
+}
+
+model Question {
+  id          String               @id @default(cuid())
+  versionId   String
+  text        String
+  description String?
+  explanation String?
+  category    String?
+  weight      Float                @default(1.0)
+  order       Int
+  isActive    Boolean              @default(true)
+  hasSubitems Boolean              @default(false)
+  createdAt   DateTime             @default(now())
+  updatedAt   DateTime             @updatedAt
+  answers     AuditAnswer[]
+  version     QuestionnaireVersion @relation(fields: [versionId], references: [id], onDelete: Cascade)
+  subitems    QuestionSubitem[]
+
+  @@index([versionId])
+  @@index([isActive])
+  @@index([category])
+}
+
+model QuestionSubitem {
+  id         String        @id @default(cuid())
+  questionId String
+  text       String
+  weight     Float         @default(1.0)
+  order      Int
+  isActive   Boolean       @default(true)
+  createdAt  DateTime      @default(now())
+  updatedAt  DateTime      @updatedAt
+  answers    AuditAnswer[]
+  question   Question      @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  @@index([questionId])
+  @@index([isActive])
+}
+
+model CompanyQuestionnaire {
+  id              String        @id @default(cuid())
+  companyId       String
+  questionnaireId String
+  isEnabled       Boolean       @default(true)
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+  company         Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  questionnaire   Questionnaire @relation(fields: [questionnaireId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, questionnaireId])
+  @@index([companyId])
+  @@index([questionnaireId])
+}
+
+model Audit {
+  id              String               @id @default(cuid())
+  companyId       String
+  versionId       String
+  analystId       String
+  status          AuditStatus          @default(DRAFT)
+  auditDate       DateTime             @default(now())
+  completedAt     DateTime?
+  isDeleted       Boolean              @default(false)
+  metadata        Json?
+  positiveComment String?
+  negativeComment String?
+  totalScore      Float?
+  createdAt       DateTime             @default(now())
+  updatedAt       DateTime             @updatedAt
+  managerId       String?
+  analyst         User                 @relation(fields: [analystId], references: [id])
+  company         Company              @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  manager         Manager?             @relation(fields: [managerId], references: [id])
+  version         QuestionnaireVersion @relation(fields: [versionId], references: [id])
+  answers         AuditAnswer[]
+  history         AuditHistory[]
+
+  @@index([companyId])
+  @@index([managerId])
+  @@index([versionId])
+  @@index([analystId])
+  @@index([status])
+  @@index([isDeleted])
+  @@index([auditDate])
+}
+
+model AuditAnswer {
+  id         String           @id @default(cuid())
+  auditId    String
+  questionId String?
+  subitemId  String?
+  score      Float?
+  comment    String?
+  createdAt  DateTime         @default(now())
+  updatedAt  DateTime         @updatedAt
+  audit      Audit            @relation(fields: [auditId], references: [id], onDelete: Cascade)
+  question   Question?        @relation(fields: [questionId], references: [id])
+  subitem    QuestionSubitem? @relation(fields: [subitemId], references: [id])
+
+  @@index([auditId])
+  @@index([questionId])
+  @@index([subitemId])
+}
+
+model AuditHistory {
+  id        String     @id @default(cuid())
+  auditId   String
+  userId    String
+  action    ActionType
+  changes   Json?
+  comment   String?
+  createdAt DateTime   @default(now())
+  audit     Audit      @relation(fields: [auditId], references: [id], onDelete: Cascade)
+  user      User       @relation(fields: [userId], references: [id])
+
+  @@index([auditId])
+  @@index([userId])
+  @@index([action])
+  @@index([createdAt])
+}
+
+enum UserRole {
+  ADMIN
+  ANALYST
+  COMPANY
+}
+
+enum AuditStatus {
+  DRAFT
+  COMPLETED
+}
+
+enum ActionType {
+  CREATED
+  UPDATED
+  DELETED
+  STATUS_CHANGED
+}
