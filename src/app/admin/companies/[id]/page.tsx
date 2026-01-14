@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { ArrowLeft, Plus, Trash2, Save } from 'lucide-react';
 import Link from 'next/link';
@@ -24,6 +25,7 @@ type CompanyData = {
     fieldName: string;
     fieldValue: string;
     isConfidential: boolean;
+    questionnaireId: string | null;
     order: number;
   }>;
   managers: Array<{
@@ -75,6 +77,7 @@ export default function CompanyDetailPage({ params }: { params: { id: string } }
     fieldName: string;
     fieldValue: string;
     isConfidential: boolean;
+    questionnaireId?: string | null;
     order: number;
   }>>([]);
 
@@ -177,7 +180,7 @@ export default function CompanyDetailPage({ params }: { params: { id: string } }
   }
 
   function addInputField() {
-    setInputData([...inputData, { fieldName: '', fieldValue: '', isConfidential: false, order: inputData.length }]);
+    setInputData([...inputData, { fieldName: '', fieldValue: '', isConfidential: false, questionnaireId: null, order: inputData.length }]);
   }
 
   function removeInputField(index: number) {
@@ -349,6 +352,28 @@ export default function CompanyDetailPage({ params }: { params: { id: string } }
                     rows={3}
                   />
                 </div>
+                <div>
+                  <Label>Для какой анкеты</Label>
+                  <Select
+                    value={field.questionnaireId || 'default'}
+                    onValueChange={(value) => updateInputField(index, 'questionnaireId', value === 'default' ? null : value)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Для всех анкет" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="default">Для всех анкет (по умолчанию)</SelectItem>
+                      {allQuestionnaires
+                        .filter(q => q.isEnabled)
+                        .map(q => (
+                          <SelectItem key={q.id} value={q.id}>
+                            {q.name}
+                          </SelectItem>
+                        ))
+                      }
+                    </SelectContent>
+                  </Select>
+                </div>
                 <div className="flex items-center space-x-2">
                   <Switch
                     checked={field.isConfidential}
@@ -476,12 +501,12 @@ export default function CompanyDetailPage({ params }: { params: { id: string } }
         <CardHeader>
           <CardTitle>Пользователи компании</CardTitle>
           <CardDescription>
-            Всего: {company.users.length}
+            Всего: {company.users?.length || 0}
           </CardDescription>
         </CardHeader>
         <CardContent>
           <div className="space-y-2">
-            {company.users.map((user) => (
+            {company.users?.map((user) => (
               <div key={user.id} className="flex items-center justify-between p-3 border rounded-lg">
                 <div>
                   <p className="font-medium">{user.name}</p>
@@ -499,7 +524,7 @@ export default function CompanyDetailPage({ params }: { params: { id: string } }
                 </div>
               </div>
             ))}
-            {company.users.length === 0 && (
+            {(!company.users || company.users.length === 0) && (
               <p className="text-sm text-muted-foreground text-center py-4">
                 Нет пользователей
               </p>

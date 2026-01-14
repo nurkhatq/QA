@@ -130,7 +130,7 @@ export async function deleteCompany(id: string) {
 
 export async function setCompanyInputData(
   companyId: string,
-  fields: Array<{ fieldName: string; fieldValue: string; isConfidential?: boolean; order: number }>
+  fields: Array<{ fieldName: string; fieldValue: string; isConfidential?: boolean; questionnaireId?: string | null; order: number }>
 ) {
   const session = await getServerSession(authOptions);
   if (!session || session.user.role !== 'ADMIN') {
@@ -149,6 +149,7 @@ export async function setCompanyInputData(
       fieldName: field.fieldName,
       fieldValue: field.fieldValue,
       isConfidential: field.isConfidential || false,
+      questionnaireId: field.questionnaireId || null,
       order: field.order,
     })),
   });

@@ -22,21 +22,31 @@ interface Question {
 interface Audit {
   id: string;
   status: string;
-  company: { name: string };
+  company: { 
+    name: string;
+    inputData: Array<{
+      id: string;
+      fieldName: string;
+      fieldValue: string;
+      isConfidential: boolean;
+      questionnaireId: string | null;
+    }>;
+  };
   manager?: { name: string } | null;
   metadata?: Record<string, any>;
   version: {
     questionnaire: {
+      id: string;
       name: string;
       scale: {
         values: Array<{ value: number; label: string }>;
       };
-      metadataFields: Array<{
-        id: string;
-        fieldName: string;
-        fieldType: string;
-      }>;
     };
+    metadataFields: Array<{
+      id: string;
+      fieldName: string;
+      fieldType: string;
+    }>;
     questions: Question[];
   };
   answers: Array<{
@@ -237,6 +247,36 @@ export default function AuditPage() {
           </CardContent>
         </Card>
       )}
+
+      {/* Вводные данные компании */}
+      {(() => {
+        const relevantInputData = audit.company.inputData.filter(
+          data => !data.questionnaireId || data.questionnaireId === audit.version.questionnaire.id
+        );
+        
+        if (relevantInputData.length === 0) return null;
+        
+        return (
+          <Card>
+            <CardHeader>
+              <CardTitle>Вводные данные компании</CardTitle>
+              <CardDescription>
+                Скрипты, регламенты и доступы для проверки
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {relevantInputData.map((data) => (
+                <div key={data.id} className="space-y-2">
+                  <Label className="font-semibold">{data.fieldName}</Label>
+                  <div className="p-3 bg-muted rounded-md whitespace-pre-wrap">
+                    {data.fieldValue}
+                  </div>
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+        );
+      })()}
 
       <div className="space-y-6">
         {Object.entries(groupedQuestions).map(([category, questions]) => (
