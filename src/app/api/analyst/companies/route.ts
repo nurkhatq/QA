@@ -10,9 +10,16 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // Получаем все активные компании
+    // Получаем все активные компании, к которым привязан аналитик
     const companies = await prisma.company.findMany({
-      where: { isActive: true },
+      where: {
+        isActive: true,
+        analysts: {
+          some: {
+            userId: session.user.id
+          }
+        }
+      },
       select: {
         id: true,
         name: true,

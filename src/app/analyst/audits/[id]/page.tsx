@@ -514,7 +514,34 @@ export default function AuditPage() {
             )}
           </Button>
           {audit.status === 'DRAFT' && (
-            <Button onClick={() => setIsCompleteDialogOpen(true)} variant="default" disabled={isActionDisabled}>
+            <Button onClick={() => {
+              // Проверка, что на все вопросы даны ответы
+              const unanswered: string[] = [];
+              audit.version.questions.forEach(q => {
+                if (q.hasSubitems && q.subitems) {
+                  q.subitems.forEach(s => {
+                    if (answers[s.id]?.score === undefined || answers[s.id]?.score === null) {
+                      unanswered.push(s.text);
+                    }
+                  });
+                } else {
+                  if (answers[q.id]?.score === undefined || answers[q.id]?.score === null) {
+                    unanswered.push(q.text);
+                  }
+                }
+              });
+
+              if (unanswered.length > 0) {
+                toast({
+                  title: "Невозможно завершить аудит",
+                  description: `Необходимо ответить на все вопросы. Осталось: ${unanswered.length}`,
+                  variant: "destructive"
+                });
+                return;
+              }
+
+              setIsCompleteDialogOpen(true);
+            }} variant="default" disabled={isActionDisabled}>
               {isCompleting ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
