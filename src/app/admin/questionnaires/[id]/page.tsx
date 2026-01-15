@@ -108,6 +108,8 @@ export default function QuestionnaireDetailPage({ params }: { params: { id: stri
     newCategory: '',
     weight: 1,
   });
+  const [questionToDelete, setQuestionToDelete] = useState<string | null>(null);
+  const [versionToActivate, setVersionToActivate] = useState<string | null>(null);
 
   useEffect(() => {
     loadData();
@@ -404,13 +406,15 @@ export default function QuestionnaireDetailPage({ params }: { params: { id: stri
   }
 
   async function handleDeleteQuestion(questionId: string) {
-    if (!confirm('Деактивировать этот вопрос?')) {
-      return;
-    }
+    setQuestionToDelete(questionId);
+  }
+
+  async function proceedDeleteQuestion() {
+    if (!questionToDelete) return;
 
     setSaving(true);
     try {
-      const res = await fetch(`/api/admin/questions/${questionId}`, {
+      const res = await fetch(`/api/admin/questions/${questionToDelete}`, {
         method: 'DELETE',
       });
 
@@ -432,20 +436,23 @@ export default function QuestionnaireDetailPage({ params }: { params: { id: stri
       });
     } finally {
       setSaving(false);
+      setQuestionToDelete(null);
     }
   }
 
   async function handleSetActiveVersion(versionId: string) {
-    if (!confirm('Сделать эту версию активной? Все новые аудиты будут использовать эту версию.')) {
-      return;
-    }
+    setVersionToActivate(versionId);
+  }
+
+  async function proceedActivateVersion() {
+    if (!versionToActivate) return;
 
     setSaving(true);
     try {
       const res = await fetch(`/api/admin/questionnaires/${params.id}/active-version`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ versionId }),
+        body: JSON.stringify({ versionId: versionToActivate }),
       });
 
       if (res.ok) {
@@ -466,6 +473,7 @@ export default function QuestionnaireDetailPage({ params }: { params: { id: stri
       });
     } finally {
       setSaving(false);
+      setVersionToActivate(null);
     }
   }
 
@@ -1070,6 +1078,35 @@ export default function QuestionnaireDetailPage({ params }: { params: { id: stri
       </Dialog>
         </div>
       )}
+      <Dialog open={!!questionToDelete} onOpenChange={(open) => !open && setQuestionToDelete(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Удалить вопрос?</DialogTitle>
+            <DialogDescription>
+              Вопрос будет деактивирован и скрыт из анкеты.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={() => setQuestionToDelete(null)}>Отмена</Button>
+            <Button variant="destructive" onClick={proceedDeleteQuestion} disabled={saving}>Удалить</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!versionToActivate} onOpenChange={(open) => !open && setVersionToActivate(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Сменить активную версию?</DialogTitle>
+            <DialogDescription>
+              Все новые аудиты будут использовать эту версию анкеты.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={() => setVersionToActivate(null)}>Отмена</Button>
+            <Button onClick={proceedActivateVersion} disabled={saving}>Применить</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

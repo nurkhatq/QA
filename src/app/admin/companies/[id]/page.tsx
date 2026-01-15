@@ -16,6 +16,14 @@ import { formatDate } from '@/lib/utils';
 import { getCompanyAnalysts, assignAnalystToCompany, removeAnalystFromCompany } from '@/app/actions/company-analysts';
 import { getAnalysts } from '@/app/actions/users';
 import { useToast } from '@/hooks/use-toast';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 type CompanyData = {
   id: string;
@@ -92,6 +100,7 @@ export default function CompanyDetailPage({ params }: { params: { id: string } }
   const [assignedAnalysts, setAssignedAnalysts] = useState<any[]>([]);
   const [availableAnalysts, setAvailableAnalysts] = useState<any[]>([]);
   const [selectedAnalystId, setSelectedAnalystId] = useState('');
+  const [analystToRemove, setAnalystToRemove] = useState<string | null>(null);
 
   useEffect(() => {
     loadData();
@@ -331,13 +340,15 @@ export default function CompanyDetailPage({ params }: { params: { id: string } }
    }
  
    async function handleRemoveAnalyst(analystId: string) {
-     if (!confirm('Убрать доступ для этого аналитика?')) {
-       return;
-     }
- 
+     setAnalystToRemove(analystId);
+   }
+
+   async function proceedRemoveAnalyst() {
+     if (!analystToRemove) return;
+
      setSaving(true);
      try {
-       await removeAnalystFromCompany(params.id, analystId);
+       await removeAnalystFromCompany(params.id, analystToRemove);
        // Перезагружаем списки
        const [assigned, all] = await Promise.all([
         getCompanyAnalysts(params.id),
@@ -359,6 +370,7 @@ export default function CompanyDetailPage({ params }: { params: { id: string } }
        });
      } finally {
        setSaving(false);
+       setAnalystToRemove(null);
      }
    }
 
@@ -728,6 +740,22 @@ export default function CompanyDetailPage({ params }: { params: { id: string } }
           </div>
         </CardContent>
       </Card>
+
+      
+      <Dialog open={!!analystToRemove} onOpenChange={(open) => !open && setAnalystToRemove(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Убрать доступ?</DialogTitle>
+            <DialogDescription>
+              Аналитик больше не сможет проводить аудиты для этой компании.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setAnalystToRemove(null)}>Отмена</Button>
+            <Button variant="destructive" onClick={proceedRemoveAnalyst} disabled={saving}>Убрать доступ</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

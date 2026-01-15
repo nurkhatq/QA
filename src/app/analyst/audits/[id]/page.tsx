@@ -13,6 +13,14 @@ import Link from 'next/link';
 import { FullPageSpinner } from '@/components/spinner';
 import { FullPageError } from '@/components/error-card';
 import { useToast } from '@/hooks/use-toast';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 interface Question {
   id: string;
@@ -77,6 +85,7 @@ export default function AuditPage() {
   const [negativeComment, setNegativeComment] = useState('');
   const [isSaving, setIsSaving] = useState(false);
   const [isCompleting, setIsCompleting] = useState(false);
+  const [isCompleteDialogOpen, setIsCompleteDialogOpen] = useState(false);
 
   useEffect(() => {
     loadAudit();
@@ -193,10 +202,12 @@ export default function AuditPage() {
   };
 
   const handleComplete = async () => {
-    if (!confirm('Завершить аудит? После завершения редактирование будет ограничено.')) {
-      return;
-    }
-
+    setIsCompleteDialogOpen(false); // Close dialog immediately or keep open? Usually close before async or keep loading.
+    // Let's keep it open or close it? The logic uses `isCompleting` loading state.
+    // If we close it, `isCompleting` will show on the main button? No, let's close it after success or keep it open with loader?
+    // Common pattern: Close dialog, then show generic loader or toast.
+    // But `handleComplete` sets `setIsCompleting(true)`.
+    setIsCompleteDialogOpen(false);
     setIsCompleting(true);
     
     try {
@@ -503,7 +514,7 @@ export default function AuditPage() {
             )}
           </Button>
           {audit.status === 'DRAFT' && (
-            <Button onClick={handleComplete} variant="default" disabled={isActionDisabled}>
+            <Button onClick={() => setIsCompleteDialogOpen(true)} variant="default" disabled={isActionDisabled}>
               {isCompleting ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -519,6 +530,24 @@ export default function AuditPage() {
           )}
         </div>
       </div>
+        <Dialog open={isCompleteDialogOpen} onOpenChange={setIsCompleteDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Завершить аудит?</DialogTitle>
+            <DialogDescription>
+              После завершения редактирование будет ограничено. Вы уверены, что хотите продолжить?
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsCompleteDialogOpen(false)}>
+              Отмена
+            </Button>
+            <Button onClick={handleComplete}>
+              Завершить
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

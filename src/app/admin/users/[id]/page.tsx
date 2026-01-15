@@ -18,6 +18,14 @@ import {
 import { ArrowLeft, Save, KeyRound } from 'lucide-react';
 import Link from 'next/link';
 import { useToast } from '@/hooks/use-toast';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 type UserData = {
   id: string;
@@ -50,6 +58,7 @@ export default function UserDetailPage({ params }: { params: { id: string } }) {
   const [companies, setCompanies] = useState<CompanyOption[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [showDeactivateDialog, setShowDeactivateDialog] = useState(false);
 
   // Основная информация
   const [name, setName] = useState('');
@@ -172,10 +181,11 @@ export default function UserDetailPage({ params }: { params: { id: string } }) {
   }
 
   async function handleDeactivate() {
-    if (!confirm('Вы уверены, что хотите деактивировать этого пользователя?')) {
-      return;
-    }
+    setShowDeactivateDialog(true);
+  }
 
+  async function proceedDeactivate() {
+    setSaving(true);
     try {
       const res = await fetch(`/api/admin/users/${params.id}`, {
         method: 'DELETE',
@@ -195,6 +205,9 @@ export default function UserDetailPage({ params }: { params: { id: string } }) {
         description: "Ошибка при деактивации",
         variant: "destructive",
       });
+    } finally {
+        setSaving(false);
+        setShowDeactivateDialog(false);
     }
   }
 
@@ -382,6 +395,22 @@ export default function UserDetailPage({ params }: { params: { id: string } }) {
           </Button>
         </CardContent>
       </Card>
+
+
+      <Dialog open={showDeactivateDialog} onOpenChange={setShowDeactivateDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Деактивировать пользователя?</DialogTitle>
+            <DialogDescription>
+              Пользователь потеряет доступ к системе. Это действие можно отменить, активировав пользователя снова.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowDeactivateDialog(false)}>Отмена</Button>
+            <Button variant="destructive" onClick={proceedDeactivate} disabled={saving}>Деактивировать</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
