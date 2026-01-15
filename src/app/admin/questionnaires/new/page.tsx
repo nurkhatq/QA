@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Switch } from '@/components/ui/switch';
 import { ArrowLeft, Plus, Trash2, Save, GripVertical } from 'lucide-react';
 import Link from 'next/link';
+import { useToast } from '@/hooks/use-toast';
 
 type ScaleOption = {
   id: string;
@@ -40,6 +41,7 @@ type Question = {
 
 export default function NewQuestionnairePage() {
   const router = useRouter();
+  const { toast } = useToast();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [scales, setScales] = useState<ScaleOption[]>([]);
@@ -87,7 +89,7 @@ export default function NewQuestionnairePage() {
         subitems: [],
       },
     ]);
-    setExpandedQuestions(new Set([...expandedQuestions, questions.length]));
+    setExpandedQuestions(new Set([...Array.from(expandedQuestions), questions.length]));
   }
 
   function removeQuestion(index: number) {
@@ -144,12 +146,20 @@ export default function NewQuestionnairePage() {
 
   async function handleSave() {
     if (!name.trim() || !type.trim() || !scaleId) {
-      alert('Заполните обязательные поля: название, тип и шкалу оценок');
+      toast({
+        title: "Ошибка",
+        description: "Заполните обязательные поля: название, тип и шкалу оценок",
+        variant: "destructive",
+      });
       return;
     }
 
     if (questions.length === 0) {
-      alert('Добавьте хотя бы один вопрос');
+      toast({
+        title: "Ошибка",
+        description: "Добавьте хотя бы один вопрос",
+        variant: "destructive",
+      });
       return;
     }
 
@@ -168,15 +178,22 @@ export default function NewQuestionnairePage() {
       });
 
       if (res.ok) {
-        alert('Анкета создана');
+        toast({
+          title: "Успешно",
+          description: "Анкета создана",
+        });
         router.push('/admin/questionnaires');
       } else {
         const error = await res.json();
-        alert(`Ошибка: ${error.error || 'Неизвестная ошибка'}`);
+        throw new Error(error.error || 'Неизвестная ошибка');
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error saving:', error);
-      alert('Ошибка при сохранении');
+      toast({
+        title: "Ошибка",
+        description: error.message || 'Ошибка при сохранении',
+        variant: "destructive",
+      });
     } finally {
       setSaving(false);
     }

@@ -10,9 +10,11 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Loader2 } from 'lucide-react';
 import { Spinner } from '@/components/spinner';
+import { useToast } from '@/hooks/use-toast';
 
 export default function NewAuditPage() {
   const router = useRouter();
+  const { toast } = useToast();
   const [companies, setCompanies] = useState<any[]>([]);
   const [managers, setManagers] = useState<any[]>([]);
   const [questionnaires, setQuestionnaires] = useState<any[]>([]);
@@ -111,7 +113,11 @@ export default function NewAuditPage() {
       .map(field => field.fieldName);
 
     if (missingFields.length > 0) {
-      alert(`Заполните обязательные поля: ${missingFields.join(', ')}`);
+      toast({
+        title: "Ошибка",
+        description: `Заполните обязательные поля: ${missingFields.join(', ')}`,
+        variant: "destructive",
+      });
       return;
     }
 
@@ -121,7 +127,11 @@ export default function NewAuditPage() {
       // Находим выбранную анкету и берем её активную версию
       const selectedQ = questionnaires.find(q => q.questionnaireId === selectedQuestionnaire);
       if (!selectedQ || !selectedQ.currentVersionId) {
-        alert('Не удалось найти активную версию анкеты');
+        toast({
+          title: "Ошибка",
+          description: "Не удалось найти активную версию анкеты",
+          variant: "destructive",
+        });
         setIsLoading(false);
         return;
       }
@@ -139,13 +149,21 @@ export default function NewAuditPage() {
 
       if (response.ok) {
         const audit = await response.json();
+        toast({
+          title: "Успешно",
+          description: "Аудит создан",
+        });
         router.push(`/analyst/audits/${audit.id}`);
       } else {
-        alert('Ошибка при создании аудита');
+        throw new Error('Ошибка при создании аудита');
       }
     } catch (error) {
       console.error('Error creating audit:', error);
-      alert('Ошибка при создании аудита');
+      toast({
+        title: "Ошибка",
+        description: "Ошибка при создании аудита",
+        variant: "destructive",
+      });
     } finally {
       setIsLoading(false);
     }

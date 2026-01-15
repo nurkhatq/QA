@@ -15,6 +15,7 @@ import Link from 'next/link';
 import { formatDate } from '@/lib/utils';
 import { getCompanyAnalysts, assignAnalystToCompany, removeAnalystFromCompany } from '@/app/actions/company-analysts';
 import { getAnalysts } from '@/app/actions/users';
+import { useToast } from '@/hooks/use-toast';
 
 type CompanyData = {
   id: string;
@@ -65,6 +66,7 @@ export default function CompanyDetailPage({ params }: { params: { id: string } }
   const router = useRouter();
   const [company, setCompany] = useState<CompanyData | null>(null);
   const [allQuestionnaires, setAllQuestionnaires] = useState<QuestionnaireOption[]>([]);
+  const { toast } = useToast();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
@@ -143,14 +145,21 @@ export default function CompanyDetailPage({ params }: { params: { id: string } }
       });
 
       if (res.ok) {
-        alert('Информация сохранена');
+        toast({
+          title: "Успешно",
+          description: "Информация о компании сохранена",
+        });
         loadData();
       } else {
-        alert('Ошибка при сохранении');
+        throw new Error('Ошибка при сохранении');
       }
     } catch (error) {
       console.error('Error saving:', error);
-      alert('Ошибка при сохранении');
+      toast({
+        title: "Ошибка",
+        description: "Не удалось сохранить информацию",
+        variant: "destructive",
+      });
     } finally {
       setSaving(false);
     }
@@ -166,14 +175,21 @@ export default function CompanyDetailPage({ params }: { params: { id: string } }
       });
 
       if (res.ok) {
-        alert('Вводные данные сохранены');
+        toast({
+          title: "Успешно",
+          description: "Вводные данные сохранены",
+        });
         loadData();
       } else {
-        alert('Ошибка при сохранении');
+        throw new Error('Ошибка при сохранении');
       }
     } catch (error) {
       console.error('Error saving:', error);
-      alert('Ошибка при сохранении');
+      toast({
+        title: "Ошибка",
+        description: "Не удалось сохранить вводные данные",
+        variant: "destructive",
+      });
     } finally {
       setSaving(false);
     }
@@ -211,7 +227,11 @@ export default function CompanyDetailPage({ params }: { params: { id: string } }
 
   async function handleAddManager() {
     if (!newManagerName.trim()) {
-      alert('Введите имя менеджера');
+      toast({
+        title: "Ошибка",
+        description: "Введите имя менеджера",
+        variant: "destructive",
+      });
       return;
     }
 
@@ -225,13 +245,21 @@ export default function CompanyDetailPage({ params }: { params: { id: string } }
 
       if (res.ok) {
         setNewManagerName('');
+        toast({
+          title: "Успешно",
+          description: "Менеджер добавлен",
+        });
         loadData();
       } else {
-        alert('Ошибка при добавлении менеджера');
+        throw new Error('Ошибка при добавлении менеджера');
       }
     } catch (error) {
       console.error('Error adding manager:', error);
-      alert('Ошибка при добавлении менеджера');
+      toast({
+        title: "Ошибка",
+        description: "Не удалось добавить менеджера",
+        variant: "destructive",
+      });
     } finally {
       setSaving(false);
     }
@@ -247,18 +275,30 @@ export default function CompanyDetailPage({ params }: { params: { id: string } }
 
       if (res.ok) {
         loadData();
+        toast({
+          title: "Успешно",
+          description: `Менеджер ${isActive ? 'деактивирован' : 'активирован'}`,
+        });
       } else {
-        alert('Ошибка при изменении статуса менеджера');
+        throw new Error('Ошибка при изменении статуса');
       }
     } catch (error) {
       console.error('Error toggling manager:', error);
-      alert('Ошибка при изменении статуса менеджера');
+      toast({
+        title: "Ошибка",
+        description: "Не удалось изменить статус менеджера",
+        variant: "destructive",
+      });
     }
   }
 
   async function handleAddAnalyst() {
      if (!selectedAnalystId) {
-       alert('Выберите аналитика');
+       toast({
+         title: "Ошибка",
+         description: "Выберите аналитика",
+         variant: "destructive",
+       });
        return;
      }
  
@@ -273,9 +313,18 @@ export default function CompanyDetailPage({ params }: { params: { id: string } }
       ]);
       setAssignedAnalysts(assigned);
       setAvailableAnalysts(all);
+
+      toast({
+        title: "Успешно",
+        description: "Аналитик назначен",
+      });
      } catch (error) {
        console.error('Error assigning analyst:', error);
-       alert('Ошибка при назначении аналитика');
+       toast({
+         title: "Ошибка",
+         description: "Не удалось назначить аналитика",
+         variant: "destructive",
+       });
      } finally {
        setSaving(false);
      }
@@ -296,9 +345,18 @@ export default function CompanyDetailPage({ params }: { params: { id: string } }
       ]);
       setAssignedAnalysts(assigned);
       setAvailableAnalysts(all);
+
+      toast({
+        title: "Успешно",
+        description: "Доступ у аналитика убран",
+      });
      } catch (error) {
        console.error('Error removing analyst:', error);
-       alert('Ошибка при удалении аналитика');
+       toast({
+         title: "Ошибка",
+         description: "Не удалось убрать аналитика",
+         variant: "destructive",
+       });
      } finally {
        setSaving(false);
      }

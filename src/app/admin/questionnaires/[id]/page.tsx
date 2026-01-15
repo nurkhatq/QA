@@ -14,6 +14,7 @@ import { ArrowLeft, Save, Plus, Edit2, GitBranch, Trash2 } from 'lucide-react';
 import Link from 'next/link';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { useToast } from '@/hooks/use-toast';
 
 type Question = {
   id: string;
@@ -73,6 +74,7 @@ type QuestionnaireData = {
 
 export default function QuestionnaireDetailPage({ params }: { params: { id: string } }) {
   const router = useRouter();
+  const { toast } = useToast();
   const [questionnaire, setQuestionnaire] = useState<QuestionnaireData | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -121,7 +123,11 @@ export default function QuestionnaireDetailPage({ params }: { params: { id: stri
 
   async function handleCreateNewVersion() {
     if (!newVersionNotes.trim()) {
-      alert('Укажите описание изменений');
+      toast({
+        title: "Ошибка",
+        description: "Укажите описание изменений",
+        variant: "destructive",
+      });
       return;
     }
 
@@ -134,16 +140,23 @@ export default function QuestionnaireDetailPage({ params }: { params: { id: stri
       });
 
       if (res.ok) {
-        alert('Новая версия создана');
+        toast({
+          title: "Успешно",
+          description: "Новая версия создана",
+        });
         setShowNewVersionDialog(false);
         setNewVersionNotes('');
         loadData();
       } else {
-        alert('Ошибка при создании версии');
+        throw new Error('Ошибка при создании версии');
       }
     } catch (error) {
       console.error('Error creating version:', error);
-      alert('Ошибка при создании версии');
+      toast({
+        title: "Ошибка",
+        description: "Ошибка при создании версии",
+        variant: "destructive",
+      });
     } finally {
       setSaving(false);
     }
@@ -159,15 +172,22 @@ export default function QuestionnaireDetailPage({ params }: { params: { id: stri
       });
 
       if (res.ok) {
-        alert('Вопрос обновлён');
+        toast({
+          title: "Успешно",
+          description: "Вопрос обновлён",
+        });
         setEditingQuestion(null);
         loadData();
       } else {
-        alert('Ошибка при обновлении');
+        throw new Error('Ошибка при обновлении');
       }
     } catch (error) {
       console.error('Error updating question:', error);
-      alert('Ошибка при обновлении');
+      toast({
+        title: "Ошибка",
+        description: "Ошибка при обновлении",
+        variant: "destructive",
+      });
     } finally {
       setSaving(false);
     }
@@ -175,7 +195,11 @@ export default function QuestionnaireDetailPage({ params }: { params: { id: stri
 
   async function handleAddMetadataField() {
     if (!newMetadataField.fieldName.trim() || !selectedVersion) {
-      alert('Введите название поля');
+      toast({
+        title: "Ошибка",
+        description: "Введите название поля",
+        variant: "destructive",
+      });
       return;
     }
 
@@ -194,12 +218,20 @@ export default function QuestionnaireDetailPage({ params }: { params: { id: stri
         setShowMetadataDialog(false);
         setNewMetadataField({ fieldName: '', fieldType: 'text', isRequired: false, order: 0 });
         loadData();
+        toast({
+          title: "Успешно",
+          description: "Поле добавлено",
+        });
       } else {
-        alert('Ошибка при добавлении поля');
+        throw new Error('Ошибка при добавлении поля');
       }
     } catch (error) {
       console.error('Error adding metadata field:', error);
-      alert('Ошибка при добавлении поля');
+      toast({
+        title: "Ошибка",
+        description: "Ошибка при добавлении поля",
+        variant: "destructive",
+      });
     } finally {
       setSaving(false);
     }
@@ -218,12 +250,20 @@ export default function QuestionnaireDetailPage({ params }: { params: { id: stri
 
       if (res.ok) {
         loadData();
+        toast({
+          title: "Успешно",
+          description: "Поле удалено",
+        });
       } else {
-        alert('Ошибка при удалении поля');
+        throw new Error('Ошибка при удалении поля');
       }
     } catch (error) {
       console.error('Error deleting metadata field:', error);
-      alert('Ошибка при удалении поля');
+      toast({
+        title: "Ошибка",
+        description: "Ошибка при удалении поля",
+        variant: "destructive",
+      });
     } finally {
       setSaving(false);
     }
@@ -231,7 +271,11 @@ export default function QuestionnaireDetailPage({ params }: { params: { id: stri
 
   async function handleAddQuestion() {
     if (!newQuestion.text.trim() || !selectedVersion) {
-      alert('Введите текст вопроса');
+      toast({
+        title: "Ошибка",
+        description: "Введите текст вопроса",
+        variant: "destructive",
+      });
       return;
     }
 
@@ -247,12 +291,20 @@ export default function QuestionnaireDetailPage({ params }: { params: { id: stri
         setShowAddQuestionDialog(false);
         setNewQuestion({ text: '', description: '', category: '', weight: 1.0 });
         loadData();
+        toast({
+          title: "Успешно",
+          description: "Вопрос добавлен",
+        });
       } else {
-        alert('Ошибка при добавлении вопроса');
+        throw new Error('Ошибка при добавлении вопроса');
       }
     } catch (error) {
       console.error('Error adding question:', error);
-      alert('Ошибка при добавлении вопроса');
+      toast({
+        title: "Ошибка",
+        description: "Ошибка при добавлении вопроса",
+        variant: "destructive",
+      });
     } finally {
       setSaving(false);
     }
@@ -271,12 +323,20 @@ export default function QuestionnaireDetailPage({ params }: { params: { id: stri
 
       if (res.ok) {
         loadData();
+        toast({
+          title: "Успешно",
+          description: "Вопрос деактивирован",
+        });
       } else {
-        alert('Ошибка при удалении вопроса');
+        throw new Error('Ошибка при удалении вопроса');
       }
     } catch (error) {
       console.error('Error deleting question:', error);
-      alert('Ошибка при удалении вопроса');
+      toast({
+        title: "Ошибка",
+        description: "Ошибка при удалении вопроса",
+        variant: "destructive",
+      });
     } finally {
       setSaving(false);
     }
@@ -296,14 +356,21 @@ export default function QuestionnaireDetailPage({ params }: { params: { id: stri
       });
 
       if (res.ok) {
-        alert('Версия установлена как активная');
+        toast({
+          title: "Успешно",
+          description: "Версия установлена как активная",
+        });
         loadData();
       } else {
-        alert('Ошибка при установке версии');
+        throw new Error('Ошибка при установке версии');
       }
     } catch (error) {
       console.error('Error setting active version:', error);
-      alert('Ошибка при установке версии');
+      toast({
+        title: "Ошибка",
+        description: "Ошибка при установке версии",
+        variant: "destructive",
+      });
     } finally {
       setSaving(false);
     }

@@ -7,12 +7,14 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, Loader2 } from 'lucide-react';
 import Link from 'next/link';
 import { createCompany } from '@/app/actions/companies';
+import { useToast } from '@/hooks/use-toast';
 
 export default function NewCompanyPage() {
   const router = useRouter();
+  const { toast } = useToast();
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [connectionDate, setConnectionDate] = useState(
@@ -31,10 +33,18 @@ export default function NewCompanyPage() {
         connectionDate: new Date(connectionDate),
       });
 
+      toast({
+        title: "Компания создана",
+        description: "Компания успешно добавлена в систему",
+      });
       router.push(`/admin/companies/${newCompany.id}`);
     } catch (error) {
       console.error('Error creating company:', error);
-      alert('Ошибка при создании компании');
+      toast({
+        title: "Ошибка",
+        description: "Не удалось создать компанию",
+        variant: "destructive",
+      });
     } finally {
       setIsLoading(false);
     }
@@ -71,6 +81,7 @@ export default function NewCompanyPage() {
                 onChange={(e) => setName(e.target.value)}
                 required
                 placeholder="ООО Компания"
+                disabled={isLoading}
               />
             </div>
 
@@ -82,6 +93,7 @@ export default function NewCompanyPage() {
                 onChange={(e) => setDescription(e.target.value)}
                 placeholder="Краткое описание компании..."
                 rows={4}
+                disabled={isLoading}
               />
             </div>
 
@@ -93,6 +105,7 @@ export default function NewCompanyPage() {
                 value={connectionDate}
                 onChange={(e) => setConnectionDate(e.target.value)}
                 required
+                disabled={isLoading}
               />
               <p className="text-sm text-muted-foreground">
                 Используется для отслеживания ежемесячных платежей
@@ -101,12 +114,20 @@ export default function NewCompanyPage() {
 
             <div className="flex gap-3 pt-4">
               <Button type="submit" disabled={isLoading}>
-                {isLoading ? 'Создание...' : 'Создать компанию'}
+                {isLoading ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Создание...
+                  </>
+                ) : (
+                  'Создать компанию'
+                )}
               </Button>
               <Button
                 type="button"
                 variant="outline"
                 onClick={() => router.back()}
+                disabled={isLoading}
               >
                 Отмена
               </Button>

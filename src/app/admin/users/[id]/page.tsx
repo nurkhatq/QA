@@ -17,6 +17,7 @@ import {
 } from '@/components/ui/select';
 import { ArrowLeft, Save, KeyRound } from 'lucide-react';
 import Link from 'next/link';
+import { useToast } from '@/hooks/use-toast';
 
 type UserData = {
   id: string;
@@ -44,6 +45,7 @@ const roleLabels: Record<string, string> = {
 
 export default function UserDetailPage({ params }: { params: { id: string } }) {
   const router = useRouter();
+  const { toast } = useToast();
   const [user, setUser] = useState<UserData | null>(null);
   const [companies, setCompanies] = useState<CompanyOption[]>([]);
   const [loading, setLoading] = useState(true);
@@ -105,15 +107,22 @@ export default function UserDetailPage({ params }: { params: { id: string } }) {
       });
 
       if (res.ok) {
-        alert('Информация сохранена');
+        toast({
+          title: "Успешно",
+          description: "Информация сохранена",
+        });
         loadData();
       } else {
         const error = await res.json();
-        alert(`Ошибка: ${error.error || 'Неизвестная ошибка'}`);
+        throw new Error(error.error || 'Неизвестная ошибка');
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error saving:', error);
-      alert('Ошибка при сохранении');
+      toast({
+        title: "Ошибка",
+        description: error.message || 'Ошибка при сохранении',
+        variant: "destructive",
+      });
     } finally {
       setSaving(false);
     }
@@ -141,15 +150,22 @@ export default function UserDetailPage({ params }: { params: { id: string } }) {
       });
 
       if (res.ok) {
-        alert('Пароль изменён');
+        toast({
+          title: "Успешно",
+          description: "Пароль изменён",
+        });
         setNewPassword('');
         setConfirmPassword('');
       } else {
-        alert('Ошибка при смене пароля');
+        throw new Error('Ошибка при смене пароля');
       }
     } catch (error) {
       console.error('Error resetting password:', error);
-      alert('Ошибка при смене пароля');
+      toast({
+        title: "Ошибка",
+        description: "Ошибка при смене пароля",
+        variant: "destructive",
+      });
     } finally {
       setSaving(false);
     }
@@ -166,11 +182,19 @@ export default function UserDetailPage({ params }: { params: { id: string } }) {
       });
 
       if (res.ok) {
+        toast({
+          title: "Успешно",
+          description: "Пользователь деактивирован",
+        });
         router.push('/admin/users');
       }
     } catch (error) {
       console.error('Error deactivating user:', error);
-      alert('Ошибка при деактивации');
+      toast({
+        title: "Ошибка",
+        description: "Ошибка при деактивации",
+        variant: "destructive",
+      });
     }
   }
 

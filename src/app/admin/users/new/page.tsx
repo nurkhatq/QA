@@ -7,14 +7,16 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, Loader2 } from 'lucide-react';
 import Link from 'next/link';
 import { createUser } from '@/app/actions/users';
 import { getCompanies } from '@/app/actions/companies';
+import { useToast } from '@/hooks/use-toast';
 
 export default function NewUserPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { toast } = useToast();
   const isEmployeeMode = searchParams.get('type') === 'employee';
   const preselectedCompanyId = searchParams.get('companyId');
 
@@ -47,6 +49,11 @@ export default function NewUserPage() {
         companyId: role === 'COMPANY' ? companyId : undefined,
       });
 
+      toast({
+        title: "Пользователь создан",
+        description: "Пользователь успешно добавлен в систему",
+      });
+
       if (preselectedCompanyId) {
         router.push(`/admin/companies/${preselectedCompanyId}`);
       } else {
@@ -54,7 +61,11 @@ export default function NewUserPage() {
       }
     } catch (error: any) {
       console.error('Error creating user:', error);
-      alert(error.message || 'Ошибка при создании пользователя');
+      toast({
+        title: "Ошибка",
+        description: error.message || 'Ошибка при создании пользователя',
+        variant: "destructive",
+      });
     } finally {
       setIsLoading(false);
     }
@@ -91,6 +102,7 @@ export default function NewUserPage() {
                 onChange={(e) => setName(e.target.value)}
                 required
                 placeholder="Иван Иванов"
+                disabled={isLoading}
               />
             </div>
 
@@ -103,6 +115,7 @@ export default function NewUserPage() {
                 onChange={(e) => setEmail(e.target.value)}
                 required
                 placeholder="user@example.com"
+                disabled={isLoading}
               />
             </div>
 
@@ -116,12 +129,13 @@ export default function NewUserPage() {
                 required
                 minLength={6}
                 placeholder="Минимум 6 символов"
+                disabled={isLoading}
               />
             </div>
 
             <div className="space-y-2">
               <Label htmlFor="role">Роль *</Label>
-              <Select value={role} onValueChange={setRole}>
+              <Select value={role} onValueChange={setRole} disabled={isLoading}>
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
@@ -141,7 +155,7 @@ export default function NewUserPage() {
             {role === 'COMPANY' && (
               <div className="space-y-2">
                 <Label htmlFor="company">Компания *</Label>
-                <Select value={companyId} onValueChange={setCompanyId}>
+                <Select value={companyId} onValueChange={setCompanyId} disabled={isLoading}>
                   <SelectTrigger>
                     <SelectValue placeholder="Выберите компанию" />
                   </SelectTrigger>
@@ -161,12 +175,20 @@ export default function NewUserPage() {
                 type="submit"
                 disabled={isLoading || (role === 'COMPANY' && !companyId)}
               >
-                {isLoading ? 'Создание...' : 'Создать пользователя'}
+                {isLoading ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Создание...
+                  </>
+                ) : (
+                  'Создать пользователя'
+                )}
               </Button>
               <Button
                 type="button"
                 variant="outline"
                 onClick={() => router.back()}
+                disabled={isLoading}
               >
                 Отмена
               </Button>
