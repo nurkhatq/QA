@@ -6,6 +6,7 @@ export interface ScoreCalculationData {
       weight: number;
       isActive: boolean;
       hasSubitems: boolean;
+      category: string | null;
     } | null;
     subitem?: {
       weight: number;
@@ -107,7 +108,7 @@ export function calculateCategoryScores(
 
   const categoryScores: CategoryScore[] = [];
 
-  for (const [category, data] of categoryMap.entries()) {
+  for (const [category, data] of Array.from(categoryMap.entries())) {
     if (data.totalWeight === 0) continue;
 
     categoryScores.push({

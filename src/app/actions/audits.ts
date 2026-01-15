@@ -535,6 +535,7 @@ export async function getAuditScore(auditId: string) {
               weight: true,
               isActive: true,
               hasSubitems: true,
+              category: true,
             },
           },
           subitem: {
