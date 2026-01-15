@@ -7,6 +7,7 @@ import { revalidatePath } from 'next/cache';
 import { AuditStatus } from '@prisma/client';
 import { calculateAuditScore, calculateCategoryScores } from '@/lib/calculations';
 import { format } from 'date-fns';
+import { formatInTimeZone } from 'date-fns-tz';
 import { ru } from 'date-fns/locale';
 
 export async function getAudits(filters?: {
@@ -542,10 +543,10 @@ export async function completeAudit(auditId: string) {
             to: user.email,
             companyName: fullAudit.company.name,
             auditName: fullAudit.version.questionnaire.name,
-            score: totalScore,
+            score: totalScore / 100,
             auditId: fullAudit.id,
             managerName: fullAudit.manager?.name || 'Не указан',
-            auditDate: format(fullAudit.auditDate, 'dd MMMM yyyy, HH:mm', { locale: ru }),
+            auditDate: formatInTimeZone(fullAudit.auditDate, 'Asia/Almaty', 'dd MMMM yyyy, HH:mm', { locale: ru }),
             categories: categoryScores.map((c) => ({ name: c.category, score: c.score })),
             positiveComment: fullAudit.positiveComment || undefined,
             negativeComment: fullAudit.negativeComment || undefined,
