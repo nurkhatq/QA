@@ -9,10 +9,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { ScoreTrendChart } from '@/components/score-trend-chart';
 import { CategoryRadarChart } from '@/components/category-radar-chart';
 import { QualityDistributionChart } from '@/components/quality-distribution-chart';
-import { BarChart3, TrendingUp, Users, FileText, Award, AlertTriangle } from 'lucide-react';
-import { subMonths, subYears, format } from 'date-fns';
+import { TrendingUp, FileText, Award, AlertTriangle } from 'lucide-react';
+import { subYears, format } from 'date-fns';
 import Link from 'next/link';
-import { Badge } from '@/components/ui/badge';
 
 interface Stats {
   totalAudits: number;
@@ -169,6 +168,9 @@ export default function CompanyDashboard() {
                 {stats.scoreChange >= 0 ? '+' : ''}{stats.scoreChange.toFixed(1)}% от предыдущего периода
               </p>
             )}
+            {stats.scoreChange === null && (
+              <p className="text-xs text-muted-foreground">Нет данных для сравнения</p>
+            )}
           </CardContent>
         </Card>
 
@@ -180,7 +182,7 @@ export default function CompanyDashboard() {
           <CardContent>
             <div className="text-2xl font-bold">{stats.totalAudits}</div>
             <p className="text-xs text-muted-foreground">
-              Завершенных проверок
+              {stats.managers.length} {stats.managers.length === 1 ? 'менеджер' : 'менеджеров'}
             </p>
           </CardContent>
         </Card>
@@ -193,8 +195,8 @@ export default function CompanyDashboard() {
           <CardContent>
             {bestCategory ? (
               <>
-                <div className="text-2xl font-bold">{bestCategory.score.toFixed(1)}%</div>
-                <p className="text-xs text-muted-foreground truncate">
+                <div className="text-2xl font-bold text-green-600">{bestCategory.score.toFixed(1)}%</div>
+                <p className="text-xs text-muted-foreground truncate" title={bestCategory.category}>
                   {bestCategory.category}
                 </p>
               </>
@@ -212,8 +214,8 @@ export default function CompanyDashboard() {
           <CardContent>
             {worstCategory ? (
               <>
-                <div className="text-2xl font-bold">{worstCategory.score.toFixed(1)}%</div>
-                <p className="text-xs text-muted-foreground truncate">
+                <div className="text-2xl font-bold text-orange-600">{worstCategory.score.toFixed(1)}%</div>
+                <p className="text-xs text-muted-foreground truncate" title={worstCategory.category}>
                   {worstCategory.category}
                 </p>
               </>
@@ -228,10 +230,11 @@ export default function CompanyDashboard() {
       {stats.timeline && stats.timeline.length > 0 && (
         <div className="grid gap-6 md:grid-cols-2">
           <ScoreTrendChart 
-            data={stats.timeline.map(t => ({ month: t.month, averageScore: t.averageScore }))}
+            data={stats.timeline.map(t => ({ month: t.month, averageScore: t.averageScore, count: t.count }))}
             scoreChange={stats.scoreChange}
+            totalAudits={stats.totalAudits}
           />
-          <QualityDistributionChart data={stats.distribution} />
+          <QualityDistributionChart data={stats.distribution} totalAudits={stats.totalAudits} />
         </div>
       )}
 
@@ -262,7 +265,12 @@ export default function CompanyDashboard() {
                 .map((manager, index) => (
                   <Link key={manager.id} href={`/company/managers/${manager.id}`}>
                     <div className="flex items-center gap-4 p-3 border rounded-lg hover:bg-accent transition-colors cursor-pointer">
-                      <div className="flex items-center justify-center w-8 h-8 rounded-full bg-primary/10 text-primary font-bold">
+                      <div className={`flex items-center justify-center w-8 h-8 rounded-full font-bold ${
+                        index === 0 ? 'bg-yellow-100 text-yellow-700' :
+                        index === 1 ? 'bg-gray-100 text-gray-700' :
+                        index === 2 ? 'bg-orange-100 text-orange-700' :
+                        'bg-primary/10 text-primary'
+                      }`}>
                         {index + 1}
                       </div>
                       <div className="flex-1">
@@ -274,7 +282,12 @@ export default function CompanyDashboard() {
                       <div className="flex items-center gap-2">
                         <div className="w-24 h-2 bg-muted rounded-full overflow-hidden">
                           <div 
-                            className="h-full bg-gradient-to-r from-blue-500 to-blue-600 rounded-full"
+                            className={`h-full rounded-full ${
+                              manager.averageScore >= 90 ? 'bg-green-500' :
+                              manager.averageScore >= 70 ? 'bg-blue-500' :
+                              manager.averageScore >= 50 ? 'bg-yellow-500' :
+                              'bg-red-500'
+                            }`}
                             style={{ width: `${manager.averageScore}%` }}
                           />
                         </div>

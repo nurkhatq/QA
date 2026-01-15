@@ -15,11 +15,13 @@ interface ScoreTrendChartProps {
   data: Array<{
     month: string;
     averageScore: number;
+    count: number;
   }>;
   scoreChange?: number | null;
+  totalAudits: number;
 }
 
-export function ScoreTrendChart({ data, scoreChange }: ScoreTrendChartProps) {
+export function ScoreTrendChart({ data, scoreChange, totalAudits }: ScoreTrendChartProps) {
   if (!data || data.length === 0) {
     return (
       <Card>
@@ -58,7 +60,7 @@ export function ScoreTrendChart({ data, scoreChange }: ScoreTrendChartProps) {
           )}
         </CardTitle>
         <CardDescription>
-          Изменение среднего балла по периодам
+          Средний балл по периодам • {totalAudits} {totalAudits === 1 ? 'аудит' : 'аудитов'}
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -87,7 +89,8 @@ export function ScoreTrendChart({ data, scoreChange }: ScoreTrendChartProps) {
               tick={{ fontSize: 12 }}
               tickFormatter={(value) => {
                 const [year, month] = value.split('-');
-                return `${month}.${year.slice(2)}`;
+                const monthNames = ['Янв', 'Фев', 'Мар', 'Апр', 'Май', 'Июн', 'Июл', 'Авг', 'Сен', 'Окт', 'Ноя', 'Дек'];
+                return monthNames[parseInt(month) - 1];
               }}
             />
             <YAxis
@@ -96,15 +99,21 @@ export function ScoreTrendChart({ data, scoreChange }: ScoreTrendChartProps) {
               tickMargin={8}
               tick={{ fontSize: 12 }}
               domain={[0, 100]}
+              label={{ value: 'Балл (%)', angle: -90, position: 'insideLeft', style: { fontSize: 12 } }}
             />
             <Tooltip
               content={({ active, payload }) => {
                 if (active && payload && payload.length) {
+                  const [year, month] = payload[0].payload.month.split('-');
+                  const monthNames = ['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'];
                   return (
                     <div className="bg-background border rounded-lg p-3 shadow-lg">
-                      <p className="font-semibold">{payload[0].payload.month}</p>
+                      <p className="font-semibold">{monthNames[parseInt(month) - 1]} {year}</p>
                       <p className="text-sm">
                         Средний балл: <span className="font-bold">{payload[0].value}%</span>
+                      </p>
+                      <p className="text-sm text-muted-foreground">
+                        Аудитов: {payload[0].payload.count}
                       </p>
                     </div>
                   );

@@ -16,6 +16,7 @@ interface QualityDistributionChartProps {
     average: number;
     poor: number;
   };
+  totalAudits: number;
 }
 
 const COLORS = {
@@ -25,7 +26,7 @@ const COLORS = {
   poor: 'hsl(0, 84%, 60%)', // red
 };
 
-export function QualityDistributionChart({ data }: QualityDistributionChartProps) {
+export function QualityDistributionChart({ data, totalAudits }: QualityDistributionChartProps) {
   const chartData = [
     { name: 'Отлично (90%+)', value: data.excellent, fill: COLORS.excellent },
     { name: 'Хорошо (70-89%)', value: data.good, fill: COLORS.good },
@@ -51,7 +52,7 @@ export function QualityDistributionChart({ data }: QualityDistributionChartProps
       <CardHeader>
         <CardTitle>Распределение качества</CardTitle>
         <CardDescription>
-          Процентное соотношение уровней оценок
+          {totalAudits} {totalAudits === 1 ? 'аудит' : 'аудитов'} по уровням оценок
         </CardDescription>
       </CardHeader>
       <CardContent className="flex-1 pb-0">
