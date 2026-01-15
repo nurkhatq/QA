@@ -44,7 +44,16 @@ interface Audit {
       questionnaireId: string | null;
     }>;
   };
-  manager?: { name: string } | null;
+  manager?: { 
+    name: string;
+    inputData: Array<{
+      id: string;
+      fieldName: string;
+      fieldValue: string;
+      isConfidential: boolean;
+      order: number;
+    }>;
+  } | null;
   metadata?: Record<string, any>;
   version: {
     questionnaire: {
@@ -322,6 +331,29 @@ export default function AuditPage() {
                 </div>
               );
             })}
+          </CardContent>
+        </Card>
+      )}
+
+
+      {/* Вводные данные менеджера */}
+      {audit.manager?.inputData && audit.manager.inputData.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Вводные данные менеджера</CardTitle>
+            <CardDescription>
+              Персональные скрипты и доступы
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {audit.manager.inputData.map((data: any) => (
+              <div key={data.id} className="space-y-2">
+                <Label className="font-semibold">{data.fieldName}</Label>
+                <div className="p-3 bg-muted rounded-md whitespace-pre-wrap">
+                  {data.fieldValue}
+                </div>
+              </div>
+            ))}
           </CardContent>
         </Card>
       )}

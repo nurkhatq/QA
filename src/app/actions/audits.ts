@@ -113,6 +113,9 @@ export async function getAudit(id: string) {
         select: {
           id: true,
           name: true,
+          inputData: {
+            orderBy: { order: 'asc' },
+          },
         },
       },
       analyst: {

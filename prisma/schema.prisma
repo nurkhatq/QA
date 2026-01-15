@@ -68,9 +68,24 @@ model Manager {
   updatedAt DateTime @updatedAt
   audits    Audit[]
   company   Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  inputData ManagerInputData[]
 
   @@index([companyId])
   @@index([isActive])
+}
+
+model ManagerInputData {
+  id             String   @id @default(cuid())
+  managerId      String
+  fieldName      String
+  fieldValue     String
+  isConfidential Boolean  @default(false)
+  order          Int      @default(0)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  manager        Manager  @relation(fields: [managerId], references: [id], onDelete: Cascade)
+
+  @@index([managerId])
 }
 
 model CompanyInputData {

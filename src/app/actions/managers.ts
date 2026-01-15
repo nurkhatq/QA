@@ -138,3 +138,40 @@ export async function deleteManager(id: string) {
   revalidatePath('/admin/companies');
   revalidatePath(`/admin/companies/${manager.companyId}`);
 }
+
+export async function setManagerInputData(
+  managerId: string,
+  fields: Array<{ fieldName: string; fieldValue: string; isConfidential?: boolean; order: number }>
+) {
+  const session = await getServerSession(authOptions);
+  if (!session || session.user.role !== 'ADMIN') {
+    throw new Error('Unauthorized');
+  }
+
+  // Удаляем старые данные
+  await prisma.managerInputData.deleteMany({
+    where: { managerId },
+  });
+
+  // Создаем новые
+  await prisma.managerInputData.createMany({
+    data: fields.map((field) => ({
+      managerId,
+      fieldName: field.fieldName,
+      fieldValue: field.fieldValue,
+      isConfidential: field.isConfidential || false,
+      order: field.order,
+    })),
+  });
+
+  // Revalidate might be tricky as managers are listed in company page
+  // We need to find the company ID to revalidate the company page
+  const manager = await prisma.manager.findUnique({
+    where: { id: managerId },
+    select: { companyId: true }
+  });
+
+  if (manager) {
+    revalidatePath(`/admin/companies/${manager.companyId}`);
+  }
+}

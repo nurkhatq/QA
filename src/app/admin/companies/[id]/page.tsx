@@ -10,7 +10,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
-import { ArrowLeft, Plus, Trash2, Save } from 'lucide-react';
+import { ArrowLeft, Plus, Trash2, Save, Database } from 'lucide-react';
 import Link from 'next/link';
 import { formatDate } from '@/lib/utils';
 import { getCompanyAnalysts, assignAnalystToCompany, removeAnalystFromCompany } from '@/app/actions/company-analysts';
@@ -101,6 +101,16 @@ export default function CompanyDetailPage({ params }: { params: { id: string } }
   const [availableAnalysts, setAvailableAnalysts] = useState<any[]>([]);
   const [selectedAnalystId, setSelectedAnalystId] = useState('');
   const [analystToRemove, setAnalystToRemove] = useState<string | null>(null);
+
+  // Вводные данные менеджера
+  const [selectedManagerIdForData, setSelectedManagerIdForData] = useState<string | null>(null);
+  const [managerInputData, setManagerInputData] = useState<Array<{
+    fieldName: string;
+    fieldValue: string;
+    isConfidential: boolean;
+    order: number;
+  }>>([]);
+  const [loadingManagerData, setLoadingManagerData] = useState(false);
 
   useEffect(() => {
     loadData();
@@ -374,6 +384,80 @@ export default function CompanyDetailPage({ params }: { params: { id: string } }
      }
    }
 
+    async function handleOpenManagerData(managerId: string) {
+      setSelectedManagerIdForData(managerId);
+      setLoadingManagerData(true);
+      setManagerInputData([]);
+  
+      try {
+        const res = await fetch(`/api/admin/managers/${managerId}/input-data`);
+        if (res.ok) {
+          const data = await res.json();
+          setManagerInputData(data.map((item: any) => ({
+            fieldName: item.fieldName,
+            fieldValue: item.fieldValue,
+            isConfidential: item.isConfidential,
+            order: item.order
+          })));
+        }
+      } catch (error) {
+        console.error('Error loading manager input data:', error);
+        toast({
+          title: "Ошибка",
+          description: "Не удалось загрузить данные менеджера",
+          variant: "destructive",
+        });
+      } finally {
+        setLoadingManagerData(false);
+      }
+    }
+  
+    async function handleSaveManagerInputData() {
+      if (!selectedManagerIdForData) return;
+  
+      setSaving(true);
+      try {
+        const res = await fetch(`/api/admin/managers/${selectedManagerIdForData}/input-data`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ fields: managerInputData }),
+        });
+  
+        if (res.ok) {
+          toast({
+            title: "Успешно",
+            description: "Вводные данные менеджера сохранены",
+          });
+          setSelectedManagerIdForData(null);
+        } else {
+          throw new Error('Ошибка при сохранении');
+        }
+      } catch (error) {
+        console.error('Error saving manager data:', error);
+        toast({
+          title: "Ошибка",
+          description: "Не удалось сохранить данные",
+          variant: "destructive",
+        });
+      } finally {
+        setSaving(false);
+      }
+    }
+  
+    function addManagerInputField() {
+      setManagerInputData([...managerInputData, { fieldName: '', fieldValue: '', isConfidential: false, order: managerInputData.length }]);
+    }
+  
+    function removeManagerInputField(index: number) {
+      setManagerInputData(managerInputData.filter((_, i) => i !== index));
+    }
+  
+    function updateManagerInputField(index: number, field: string, value: any) {
+      const updated = [...managerInputData];
+      updated[index] = { ...updated[index], [field]: value };
+      setManagerInputData(updated);
+    }
+
   if (loading) {
     return <div>Загрузка...</div>;
   }
@@ -574,6 +658,14 @@ export default function CompanyDetailPage({ params }: { params: { id: string } }
                   <p className="font-medium">{manager.name}</p>
                 </div>
                 <div className="flex items-center gap-2">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => handleOpenManagerData(manager.id)}
+                    title="Вводные данные"
+                  >
+                    <Database className="h-4 w-4" />
+                  </Button>
                   <Badge variant={manager.isActive ? 'default' : 'secondary'}>
                     {manager.isActive ? 'Активен' : 'Неактивен'}
                   </Badge>
@@ -756,6 +848,83 @@ export default function CompanyDetailPage({ params }: { params: { id: string } }
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <Dialog open={!!selectedManagerIdForData} onOpenChange={(open) => !open && setSelectedManagerIdForData(null)}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Вводные данные менеджера</DialogTitle>
+            <DialogDescription>
+              Логины, пароли, скрипты и другая информация для этого менеджера.
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4 py-4">
+            {loadingManagerData ? (
+              <div className="text-center py-4">Загрузка...</div>
+            ) : (
+              <>
+                <div className="flex justify-end">
+                  <Button onClick={addManagerInputField} variant="outline" size="sm">
+                    <Plus className="mr-2 h-4 w-4" />
+                    Добавить поле
+                  </Button>
+                </div>
+
+                <div className="space-y-4">
+                  {managerInputData.map((field, index) => (
+                    <div key={index} className="flex gap-4 items-start border p-4 rounded-lg">
+                      <div className="flex-1 space-y-4">
+                        <div>
+                          <Label>Название поля</Label>
+                          <Input
+                            value={field.fieldName}
+                            onChange={(e) => updateManagerInputField(index, 'fieldName', e.target.value)}
+                            placeholder="Например: Логин в CRM"
+                          />
+                        </div>
+                        <div>
+                          <Label>Значение</Label>
+                          <Textarea
+                            value={field.fieldValue}
+                            onChange={(e) => updateManagerInputField(index, 'fieldValue', e.target.value)}
+                            placeholder="Введите значение..."
+                          />
+                        </div>
+                        <div className="flex items-center space-x-2">
+                          <Switch
+                            checked={field.isConfidential}
+                            onCheckedChange={(checked) => updateManagerInputField(index, 'isConfidential', checked)}
+                          />
+                          <Label>Конфиденциально</Label>
+                        </div>
+                      </div>
+                      <Button
+                        variant="destructive"
+                        size="icon"
+                        onClick={() => removeManagerInputField(index)}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  ))}
+                  
+                  {managerInputData.length === 0 && (
+                    <p className="text-center text-muted-foreground py-8">
+                      Нет данных
+                    </p>
+                  )}
+                </div>
+              </>
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setSelectedManagerIdForData(null)}>Отмена</Button>
+            <Button onClick={handleSaveManagerInputData} disabled={saving || loadingManagerData}>Сохранить</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
     </div>
   );
 }
