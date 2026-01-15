@@ -30,18 +30,55 @@ interface Stats {
   categoryAverages: Array<{ category: string; score: number }>;
 }
 
+interface Manager {
+  id: string;
+  name: string;
+}
+
+interface Questionnaire {
+  id: string;
+  name: string;
+}
+
 export default function CompanyDashboard() {
   const [stats, setStats] = useState<Stats | null>(null);
+  const [allManagers, setAllManagers] = useState<Manager[]>([]);
+  const [allQuestionnaires, setAllQuestionnaires] = useState<Questionnaire[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [startDate, setStartDate] = useState(format(subYears(new Date(), 1), 'yyyy-MM-dd'));
   const [endDate, setEndDate] = useState(format(new Date(Date.now() + 86400000), 'yyyy-MM-dd'));
   const [selectedManager, setSelectedManager] = useState<string>('all');
   const [selectedQuestionnaire, setSelectedQuestionnaire] = useState<string>('all');
+  const [groupBy, setGroupBy] = useState<'day' | 'week' | 'month'>('month');
+
+  useEffect(() => {
+    loadAllOptions();
+  }, []);
 
   useEffect(() => {
     loadStats();
-  }, [startDate, endDate, selectedManager, selectedQuestionnaire]);
+  }, [startDate, endDate, selectedManager, selectedQuestionnaire, groupBy]);
+
+  async function loadAllOptions() {
+    try {
+      // Fetch all managers
+      const managersRes = await fetch('/api/company/managers');
+      if (managersRes.ok) {
+        const managersData = await managersRes.json();
+        setAllManagers(managersData);
+      }
+
+      // Fetch all questionnaires
+      const questionnairesRes = await fetch('/api/company/questionnaires');
+      if (questionnairesRes.ok) {
+        const questionnairesData = await questionnairesRes.json();
+        setAllQuestionnaires(questionnairesData);
+      }
+    } catch (err) {
+      console.error('Ошибка загрузки опций:', err);
+    }
+  }
 
   async function loadStats() {
     setLoading(true);
@@ -52,6 +89,7 @@ export default function CompanyDashboard() {
       if (endDate) params.append('endDate', endDate);
       if (selectedManager !== 'all') params.append('managerId', selectedManager);
       if (selectedQuestionnaire !== 'all') params.append('questionnaireId', selectedQuestionnaire);
+      params.append('groupBy', groupBy);
 
       const response = await fetch(`/api/company/stats?${params.toString()}`);
       
@@ -99,7 +137,7 @@ export default function CompanyDashboard() {
           <CardDescription>Настройте период и параметры для анализа</CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
             <div>
               <Label htmlFor="startDate">Начало периода</Label>
               <Input
@@ -119,6 +157,19 @@ export default function CompanyDashboard() {
               />
             </div>
             <div>
+              <Label htmlFor="groupBy">Группировка</Label>
+              <Select value={groupBy} onValueChange={(value: 'day' | 'week' | 'month') => setGroupBy(value)}>
+                <SelectTrigger id="groupBy">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="day">По дням</SelectItem>
+                  <SelectItem value="week">По неделям</SelectItem>
+                  <SelectItem value="month">По месяцам</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
               <Label htmlFor="manager">Менеджер</Label>
               <Select value={selectedManager} onValueChange={setSelectedManager}>
                 <SelectTrigger id="manager">
@@ -126,7 +177,7 @@ export default function CompanyDashboard() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Все менеджеры</SelectItem>
-                  {stats.managers && stats.managers.map((manager) => (
+                  {allManagers.map((manager) => (
                     <SelectItem key={manager.id} value={manager.id}>
                       {manager.name}
                     </SelectItem>
@@ -142,7 +193,7 @@ export default function CompanyDashboard() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Все анкеты</SelectItem>
-                  {stats.questionnaires && stats.questionnaires.map((q) => (
+                  {allQuestionnaires.map((q) => (
                     <SelectItem key={q.id} value={q.id}>
                       {q.name}
                     </SelectItem>

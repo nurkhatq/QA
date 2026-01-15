@@ -11,6 +11,7 @@ export async function getCompanyStats(filters?: {
     endDate?: Date;
     managerId?: string;
     questionnaireId?: string;
+    groupBy?: 'day' | 'week' | 'month';
 }) {
     const session = await getServerSession(authOptions);
     if (!session || session.user.role !== 'COMPANY') {
@@ -18,6 +19,7 @@ export async function getCompanyStats(filters?: {
     }
 
     const companyId = session.user.companyId!;
+    const groupBy = filters?.groupBy || 'month';
 
     const where: any = {
         companyId,
@@ -95,36 +97,39 @@ export async function getCompanyStats(filters?: {
         ? audits.reduce((sum, audit) => sum + (audit.totalScore || 0), 0) / totalAudits
         : 0;
 
-    // Группируем по месяцам для графика динамики и категорий
-    const monthlyData = audits.reduce((acc, audit) => {
-        const month = format(new Date(audit.auditDate), 'yyyy-MM');
-        if (!acc[month]) {
-            acc[month] = {
+    // Функция для группировки по периоду
+    const getGroupKey = (date: Date) => {
+        if (groupBy === 'day') {
+            return format(date, 'yyyy-MM-dd');
+        } else if (groupBy === 'week') {
+            // Группировка по неделям (ISO week)
+            const weekStart = new Date(date);
+            weekStart.setDate(date.getDate() - date.getDay() + 1); // Понедельник
+            return format(weekStart, 'yyyy-MM-dd');
+        } else {
+            return format(date, 'yyyy-MM');
+        }
+    };
+
+    // Группируем по выбранному периоду для графика динамики и категорий
+    const groupedData = audits.reduce((acc, audit) => {
+        const key = getGroupKey(new Date(audit.auditDate));
+        if (!acc[key]) {
+            acc[key] = {
                 scores: [],
                 count: 0,
                 categoryScores: new Map<string, { total: number, count: number }>()
             };
         }
-        acc[month].scores.push(audit.totalScore || 0);
-        acc[month].count++;
+        acc[key].scores.push(audit.totalScore || 0);
+        acc[key].count++;
 
         // Считаем категории для этого аудита
         const auditCategoryScores = calculateCategoryScores({ answers: audit.answers });
         auditCategoryScores.forEach(catScore => {
-            const current = acc[month].categoryScores.get(catScore.category) || { total: 0, count: 0 };
-            acc[month].categoryScores.set(catScore.category, {
-                total: current.total + catScore.score, // catScore.score is 0-1 (normalized?), actually calculateCategoryScores returns weighted score logic. 
-                // Wait, calculateCategoryScores returns score for that category based on weights. 
-                // Let's verify calculateCategoryScores return value.
-                // It returns `score`: totalWeightedScore / totalWeight. This is 0 to 1 usually? 
-                // Let's check calculations.ts again.
-                // Yes, it returns score. If weights are regular numbers, score is effectively normalized if max score is achieved.
-                // IMPORTANT: calculateCategoryScores returns score ratio (0 to 1) NOT percentage?
-                // No, wait. 
-                // totalWeightedScore += score * weight.
-                // If score is 0-1 range (from scale), then result is 0-1.
-                // If score is e.g. 0, 0.5, 1. The result is 0-1.
-                // So we should multiply by 100 later or here.
+            const current = acc[key].categoryScores.get(catScore.category) || { total: 0, count: 0 };
+            acc[key].categoryScores.set(catScore.category, {
+                total: current.total + catScore.score,
                 count: current.count + 1
             });
         });
@@ -136,15 +141,15 @@ export async function getCompanyStats(filters?: {
         categoryScores: Map<string, { total: number, count: number }>
     }>);
 
-    const timeline = Object.entries(monthlyData).map(([month, data]) => {
+    const timeline = Object.entries(groupedData).map(([period, data]) => {
         const categoryData: Record<string, number> = {};
         data.categoryScores.forEach((stats, category) => {
-            // Average score for this category in this month (in percentage)
+            // Average score for this category in this period (in percentage)
             categoryData[category] = Math.round((stats.total / stats.count) * 100 * 10) / 10;
         });
 
         return {
-            month,
+            month: period, // Keep as 'month' for backward compatibility
             averageScore: data.scores.reduce((a, b) => a + b, 0) / data.count,
             count: data.count,
             categories: categoryData

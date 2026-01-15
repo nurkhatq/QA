@@ -23,6 +23,10 @@ export async function GET(request: NextRequest) {
             filters.questionnaireId = searchParams.get('questionnaireId');
         }
 
+        if (searchParams.get('groupBy')) {
+            filters.groupBy = searchParams.get('groupBy') as 'day' | 'week' | 'month';
+        }
+
         const stats = await getCompanyStats(filters);
         return NextResponse.json(stats);
     } catch (error: any) {
