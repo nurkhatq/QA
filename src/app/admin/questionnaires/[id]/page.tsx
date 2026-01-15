@@ -82,9 +82,11 @@ export default function QuestionnaireDetailPage({ params }: { params: { id: stri
   const [editingQuestion, setEditingQuestion] = useState<Question | null>(null);
   const [showNewVersionDialog, setShowNewVersionDialog] = useState(false);
   const [newVersionNotes, setNewVersionNotes] = useState('');
+  const [fieldToDelete, setFieldToDelete] = useState<string | null>(null);
 
   // Метаданные
   const [showMetadataDialog, setShowMetadataDialog] = useState(false);
+  const [editingMetadataField, setEditingMetadataField] = useState<MetadataField | null>(null);
   const [newMetadataField, setNewMetadataField] = useState({
     fieldName: '',
     fieldType: 'text',
@@ -92,13 +94,19 @@ export default function QuestionnaireDetailPage({ params }: { params: { id: stri
     order: 0,
   });
 
+  // Категории
+  const [showManageCategoriesDialog, setShowManageCategoriesDialog] = useState(false);
+  const [categoryToRename, setCategoryToRename] = useState<{ oldName: string; newName: string } | null>(null);
+
   // Вопросы
   const [showAddQuestionDialog, setShowAddQuestionDialog] = useState(false);
   const [newQuestion, setNewQuestion] = useState({
     text: '',
     description: '',
+    explanation: '',
     category: '',
-    weight: 1.0,
+    newCategory: '',
+    weight: 1,
   });
 
   useEffect(() => {
@@ -193,7 +201,7 @@ export default function QuestionnaireDetailPage({ params }: { params: { id: stri
     }
   }
 
-  async function handleAddMetadataField() {
+  async function handleSaveMetadataField() {
     if (!newMetadataField.fieldName.trim() || !selectedVersion) {
       toast({
         title: "Ошибка",
@@ -205,31 +213,48 @@ export default function QuestionnaireDetailPage({ params }: { params: { id: stri
 
     setSaving(true);
     try {
-      const res = await fetch(`/api/admin/versions/${selectedVersion.id}/metadata`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          ...newMetadataField,
-          order: selectedVersion.metadataFields?.length || 0,
-        }),
-      });
+      let res;
+      if (editingMetadataField) {
+        // Update
+        res = await fetch(`/api/admin/versions/${selectedVersion.id}/metadata/${editingMetadataField.id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            fieldName: newMetadataField.fieldName,
+            fieldType: newMetadataField.fieldType,
+            isRequired: newMetadataField.isRequired,
+            // order не меняем пока
+          }),
+        });
+      } else {
+        // Create
+        res = await fetch(`/api/admin/versions/${selectedVersion.id}/metadata`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            ...newMetadataField,
+            order: selectedVersion.metadataFields?.length || 0,
+          }),
+        });
+      }
 
       if (res.ok) {
         setShowMetadataDialog(false);
         setNewMetadataField({ fieldName: '', fieldType: 'text', isRequired: false, order: 0 });
+        setEditingMetadataField(null);
         loadData();
         toast({
           title: "Успешно",
-          description: "Поле добавлено",
+          description: editingMetadataField ? "Поле обновлено" : "Поле добавлено",
         });
       } else {
-        throw new Error('Ошибка при добавлении поля');
+        throw new Error('Ошибка при сохранении поля');
       }
     } catch (error) {
-      console.error('Error adding metadata field:', error);
+      console.error('Error saving metadata field:', error);
       toast({
         title: "Ошибка",
-        description: "Ошибка при добавлении поля",
+        description: "Ошибка при сохранении поля",
         variant: "destructive",
       });
     } finally {
@@ -237,35 +262,96 @@ export default function QuestionnaireDetailPage({ params }: { params: { id: stri
     }
   }
 
-  async function handleDeleteMetadataField(fieldId: string) {
-    if (!confirm('Удалить это поле метаданных?')) {
-      return;
+  function openEditMetadataDialog(field: MetadataField) {
+    setEditingMetadataField(field);
+    setNewMetadataField({
+        fieldName: field.fieldName,
+        fieldType: field.fieldType,
+        isRequired: field.isRequired,
+        order: field.order
+    });
+    setShowMetadataDialog(true);
+  }
+
+  function openNewMetadataDialog() {
+    setEditingMetadataField(null);
+    setNewMetadataField({ fieldName: '', fieldType: 'text', isRequired: false, order: 0 });
+    setShowMetadataDialog(true);
+  }
+
+  async function handleRenameCategory() {
+    if (!categoryToRename || !categoryToRename.newName.trim() || !selectedVersion) return;
+
+    if (categoryToRename.oldName === categoryToRename.newName) {
+       setCategoryToRename(null);
+       return;
     }
 
     setSaving(true);
     try {
-      const res = await fetch(`/api/admin/versions/${selectedVersion?.id}/metadata/${fieldId}`, {
+        const res = await fetch(`/api/admin/versions/${selectedVersion.id}/categories`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                oldCategory: categoryToRename.oldName,
+                newCategory: categoryToRename.newName
+            }),
+        });
+
+        if (res.ok) {
+            loadData();
+            toast({
+                title: "Успешно",
+                description: "Категория переименована",
+            });
+            setCategoryToRename(null);
+        } else {
+            throw new Error('Ошибка при переименовании');
+        }
+    } catch (error) {
+        console.error('Error renaming category:', error);
+        toast({
+            title: "Ошибка",
+            description: "Ошибка при переименовании категории",
+            variant: "destructive",
+        });
+    } finally {
+        setSaving(false);
+    }
+  }
+
+  async function handleDeleteMetadataField(fieldId: string) {
+    setFieldToDelete(fieldId);
+  }
+
+  async function proceedDeleteField() {
+    if (!fieldToDelete) return;
+
+    setSaving(true);
+    try {
+      const res = await fetch(`/api/admin/versions/${selectedVersion?.id}/metadata/${fieldToDelete}`, {
         method: 'DELETE',
       });
 
       if (res.ok) {
-        loadData();
         toast({
           title: "Успешно",
           description: "Поле удалено",
         });
+        loadData();
       } else {
-        throw new Error('Ошибка при удалении поля');
+        throw new Error('Ошибка при удалении');
       }
     } catch (error) {
       console.error('Error deleting metadata field:', error);
       toast({
         title: "Ошибка",
-        description: "Ошибка при удалении поля",
+        description: "Ошибка при удалении",
         variant: "destructive",
       });
     } finally {
       setSaving(false);
+      setFieldToDelete(null);
     }
   }
 
@@ -289,7 +375,14 @@ export default function QuestionnaireDetailPage({ params }: { params: { id: stri
 
       if (res.ok) {
         setShowAddQuestionDialog(false);
-        setNewQuestion({ text: '', description: '', category: '', weight: 1.0 });
+        setNewQuestion({
+      text: '',
+      description: '',
+      explanation: '',
+      category: '',
+      newCategory: '',
+      weight: 1,
+    });
         loadData();
         toast({
           title: "Успешно",
@@ -394,6 +487,8 @@ export default function QuestionnaireDetailPage({ params }: { params: { id: stri
     return acc;
   }, {} as Record<string, Question[]>) || {};
 
+  const uniqueCategories = Object.keys(groupedQuestions).filter(c => c !== 'Без категории');
+
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-4">
@@ -486,7 +581,6 @@ export default function QuestionnaireDetailPage({ params }: { params: { id: stri
                 onClick={() => setSelectedVersion(version)}
               >
                 <div className="flex items-center gap-4 flex-1">
-                  {/* Simple toggle switch */}
                   <button
                     type="button"
                     onClick={(e) => {
@@ -549,16 +643,17 @@ export default function QuestionnaireDetailPage({ params }: { params: { id: stri
                     Поля, которые аналитик заполняет перед началом аудита по этой версии
                   </CardDescription>
                 </div>
-                <Dialog open={showMetadataDialog} onOpenChange={setShowMetadataDialog}>
-                  <DialogTrigger asChild>
-                    <Button size="sm" variant="outline">
+                <div className="flex gap-2">
+                    <Button size="sm" variant="outline" onClick={openNewMetadataDialog}>
                       <Plus className="mr-2 h-4 w-4" />
                       Добавить поле
                     </Button>
-                  </DialogTrigger>
+                </div>
+
+                <Dialog open={showMetadataDialog} onOpenChange={setShowMetadataDialog}>
                   <DialogContent>
                     <DialogHeader>
-                      <DialogTitle>Добавить поле метаданных</DialogTitle>
+                      <DialogTitle>{editingMetadataField ? 'Редактировать поле' : 'Добавить поле метаданных'}</DialogTitle>
                       <DialogDescription>
                         Настройте поле для ввода дополнительной информации об аудите
                       </DialogDescription>
@@ -598,8 +693,8 @@ export default function QuestionnaireDetailPage({ params }: { params: { id: stri
                         <Label>Обязательное поле</Label>
                       </div>
                       <div className="flex gap-2">
-                        <Button onClick={handleAddMetadataField} disabled={saving}>
-                          Добавить
+                        <Button onClick={handleSaveMetadataField} disabled={saving}>
+                          {editingMetadataField ? 'Сохранить' : 'Добавить'}
                         </Button>
                         <Button variant="outline" onClick={() => setShowMetadataDialog(false)}>
                           Отмена
@@ -628,13 +723,22 @@ export default function QuestionnaireDetailPage({ params }: { params: { id: stri
                           {field.fieldType === 'textarea' && 'Текстовая область'}
                         </p>
                       </div>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => handleDeleteMetadataField(field.id)}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
+                      <div className="flex gap-1">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => openEditMetadataDialog(field)}
+                          >
+                            <Edit2 className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleDeleteMetadataField(field.id)}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -646,7 +750,7 @@ export default function QuestionnaireDetailPage({ params }: { params: { id: stri
             </CardContent>
           </Card>
 
-          {/* Вопросы */}
+      {/* Вопросы */}
           <Card>
             <CardHeader>
               <div className="flex items-center justify-between">
@@ -656,67 +760,132 @@ export default function QuestionnaireDetailPage({ params }: { params: { id: stri
                     {selectedVersion.questions.filter(q => q.isActive).length} активных из {selectedVersion.questions.length}
                   </CardDescription>
                 </div>
-                <Dialog open={showAddQuestionDialog} onOpenChange={setShowAddQuestionDialog}>
-                  <DialogTrigger asChild>
-                    <Button size="sm" variant="outline">
-                      <Plus className="mr-2 h-4 w-4" />
-                      Добавить вопрос
+                <div className="flex gap-2">
+
+
+                    <Button size="sm" variant="outline" onClick={() => setShowManageCategoriesDialog(true)}>
+                        <Edit2 className="mr-2 h-4 w-4" />
+                        Категории
                     </Button>
-                  </DialogTrigger>
-                  <DialogContent>
-                    <DialogHeader>
-                      <DialogTitle>Добавить вопрос</DialogTitle>
-                      <DialogDescription>
-                        Создать новый вопрос в версии {selectedVersion.versionNumber}
-                      </DialogDescription>
-                    </DialogHeader>
-                    <div className="space-y-4 mt-4">
-                      <div>
-                        <Label>Текст вопроса</Label>
-                        <Textarea
-                          value={newQuestion.text}
-                          onChange={(e) => setNewQuestion({ ...newQuestion, text: e.target.value })}
-                          placeholder="Введите текст вопроса"
-                          rows={2}
-                        />
-                      </div>
-                      <div>
-                        <Label>Описание (опционально)</Label>
-                        <Textarea
-                          value={newQuestion.description}
-                          onChange={(e) => setNewQuestion({ ...newQuestion, description: e.target.value })}
-                          placeholder="Дополнительное описание"
-                          rows={2}
-                        />
-                      </div>
-                      <div>
-                        <Label>Категория</Label>
-                        <Input
-                          value={newQuestion.category}
-                          onChange={(e) => setNewQuestion({ ...newQuestion, category: e.target.value })}
-                          placeholder="Например: Этап разговора"
-                        />
-                      </div>
-                      <div>
-                        <Label>Вес</Label>
-                        <Input
-                          type="number"
-                          step="0.1"
-                          value={newQuestion.weight}
-                          onChange={(e) => setNewQuestion({ ...newQuestion, weight: parseFloat(e.target.value) })}
-                        />
-                      </div>
-                      <div className="flex gap-2">
+                    <Dialog open={showManageCategoriesDialog} onOpenChange={setShowManageCategoriesDialog}>
+                        <DialogContent>
+                            <DialogHeader>
+                                <DialogTitle>Управление категориями</DialogTitle>
+                                <DialogDescription>
+                                    Переименование категорий обновит их во всех вопросах этой версии.
+                                </DialogDescription>
+                            </DialogHeader>
+                            <div className="space-y-2 mt-4">
+                                {uniqueCategories.length === 0 && <p className="text-sm text-muted-foreground">Нет категорий</p>}
+                                {uniqueCategories.map(category => (
+                                    <div key={category} className="flex items-center justify-between p-2 border rounded">
+                                        {categoryToRename?.oldName === category ? (
+                                            <div className="flex items-center gap-2 flex-1">
+                                                <Input
+                                                    value={categoryToRename.newName}
+                                                    onChange={(e) => setCategoryToRename({ ...categoryToRename, newName: e.target.value })}
+                                                    className="h-8"
+                                                />
+                                                <Button size="sm" onClick={handleRenameCategory} disabled={saving}>Ok</Button>
+                                                <Button size="sm" variant="ghost" onClick={() => setCategoryToRename(null)}>Cancel</Button>
+                                            </div>
+                                        ) : (
+                                            <>
+                                                <span className="font-medium">{category}</span>
+                                                <Button size="sm" variant="ghost" onClick={() => setCategoryToRename({ oldName: category, newName: category })}>
+                                                    <Edit2 className="h-4 w-4" />
+                                                </Button>
+                                            </>
+                                        )}
+                                    </div>
+                                ))}
+                            </div>
+                        </DialogContent>
+                    </Dialog>
+
+                    <Dialog open={showAddQuestionDialog} onOpenChange={setShowAddQuestionDialog}>
+                    <DialogTrigger asChild>
+                      <Button size="sm" onClick={() => setShowAddQuestionDialog(true)}>
+                        <Plus className="mr-2 h-4 w-4" />
+                        Добавить вопрос
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent className="max-w-2xl">
+                      <DialogHeader>
+                        <DialogTitle>Добавить новый вопрос</DialogTitle>
+                      </DialogHeader>
+                      <div className="space-y-4 mt-4">
+                        <div>
+                          <Label>Текст вопроса</Label>
+                          <Textarea
+                            value={newQuestion.text}
+                            onChange={(e) => setNewQuestion({ ...newQuestion, text: e.target.value })}
+                            placeholder="Введите текст вопроса..."
+                            rows={2}
+                          />
+                        </div>
+                        <div>
+                          <Label>Описание (подсказка)</Label>
+                          <Textarea
+                            value={newQuestion.description}
+                            onChange={(e) => setNewQuestion({ ...newQuestion, description: e.target.value })}
+                            placeholder="Дополнительная информация..."
+                            rows={2}
+                          />
+                        </div>
+                         <div>
+                          <Label>Влияние критерия</Label>
+                          <Textarea
+                            value={newQuestion.explanation}
+                            onChange={(e) => setNewQuestion({ ...newQuestion, explanation: e.target.value })}
+                            placeholder="Как это влияет на оценку..."
+                            rows={2}
+                          />
+                        </div>
+                        <div className="grid grid-cols-2 gap-4">
+                           <div>
+                              <Label>Категория</Label>
+                              <Select
+                                value={newQuestion.category}
+                                onValueChange={(val) => setNewQuestion({ ...newQuestion, category: val })}
+                              >
+                                <SelectTrigger>
+                                  <SelectValue placeholder="Выберите категорию" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="new">+ Новая категория...</SelectItem>
+                                  {uniqueCategories.map((cat) => (
+                                    <SelectItem key={cat} value={cat}>
+                                      {cat}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                              {newQuestion.category === 'new' && (
+                                <Input
+                                  className="mt-2"
+                                  placeholder="Название новой категории"
+                                  value={newQuestion.newCategory}
+                                  onChange={(e) => setNewQuestion({ ...newQuestion, newCategory: e.target.value })}
+                                />
+                              )}
+                           </div>
+                           <div>
+                              <Label>Вес</Label>
+                              <Input
+                                type="number"
+                                step="0.1"
+                                value={newQuestion.weight}
+                                onChange={(e) => setNewQuestion({ ...newQuestion, weight: parseFloat(e.target.value) })}
+                              />
+                           </div>
+                        </div>
                         <Button onClick={handleAddQuestion} disabled={saving}>
-                          Добавить
-                        </Button>
-                        <Button variant="outline" onClick={() => setShowAddQuestionDialog(false)}>
-                          Отмена
                         </Button>
                       </div>
-                    </div>
-                  </DialogContent>
-                </Dialog>
+                    </DialogContent>
+                  </Dialog>
+                </div>
               </div>
             </CardHeader>
             <CardContent>
@@ -726,97 +895,92 @@ export default function QuestionnaireDetailPage({ params }: { params: { id: stri
                 </p>
               ) : (
                 <div className="space-y-4">
-
-          {Object.entries(groupedQuestions).map(([category, questions]) => (
-            <Card key={category}>
-              <CardHeader>
-                <CardTitle>{category}</CardTitle>
-                <CardDescription>{questions.length} вопросов</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  {questions.map((question, index) => (
-                    <div key={question.id} className="border rounded-lg p-4">
-                      <div className="flex items-start justify-between mb-3">
-                        <div className="flex-1">
-                          <div className="flex items-center gap-2 mb-2">
-                            <Badge variant="outline">#{question.order}</Badge>
-                            <p className="font-medium">{question.text}</p>
-                            {!question.isActive && (
-                              <Badge variant="secondary">Неактивен</Badge>
-                            )}
-                          </div>
-                          {question.description && (
-                            <p className="text-sm text-muted-foreground mb-1">
-                              {question.description}
-                            </p>
-                          )}
-                          {question.explanation && (
-                            <p className="text-sm text-muted-foreground italic">
-                              Влияние: {question.explanation}
-                            </p>
-                          )}
-                          <p className="text-sm text-muted-foreground mt-2">
-                            Вес: {question.weight}
-                          </p>
-                        </div>
-                        <div className="flex gap-2">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => setEditingQuestion(question)}
-                          >
-                            <Edit2 className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleDeleteQuestion(question.id)}
-                          >
-                            <Trash2 className="h-4 w-4 text-destructive" />
-                          </Button>
-                        </div>
-                      </div>
-
-                      {/* Подпункты */}
-                      {question.hasSubitems && question.subitems.length > 0 && (
-                        <div className="ml-6 mt-3 space-y-2 border-l-2 pl-4">
-                          {question.subitems.map((subitem) => (
-                            <div key={subitem.id} className="text-sm">
-                              <div className="flex items-center justify-between">
-                                <span>{subitem.text}</span>
-                                <div className="flex items-center gap-2">
-                                  <span className="text-muted-foreground">
-                                    Вес: {subitem.weight}
-                                  </span>
-                                  {!subitem.isActive && (
-                                    <Badge variant="secondary" className="text-xs">
-                                      Неактивен
-                                    </Badge>
+                  {Object.entries(groupedQuestions).map(([category, questions]) => (
+                    <Card key={category}>
+                      <CardHeader>
+                        <CardTitle>{category}</CardTitle>
+                        <CardDescription>{questions.length} вопросов</CardDescription>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="space-y-4">
+                          {questions.map((question) => (
+                            <div key={question.id} className="border rounded-lg p-4">
+                              <div className="flex items-start justify-between mb-3">
+                                <div className="flex-1">
+                                  <div className="flex items-center gap-2 mb-2">
+                                    <Badge variant="outline">#{question.order}</Badge>
+                                    <p className="font-medium">{question.text}</p>
+                                    {!question.isActive && (
+                                      <Badge variant="secondary">Неактивен</Badge>
+                                    )}
+                                  </div>
+                                  {question.description && (
+                                    <p className="text-sm text-muted-foreground mb-1">
+                                      {question.description}
+                                    </p>
                                   )}
+                                  {question.explanation && (
+                                    <p className="text-sm text-muted-foreground italic">
+                                      Влияние: {question.explanation}
+                                    </p>
+                                  )}
+                                  <p className="text-sm text-muted-foreground mt-2">
+                                    Вес: {question.weight}
+                                  </p>
+                                </div>
+                                <div className="flex gap-2">
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => setEditingQuestion(question)}
+                                  >
+                                    <Edit2 className="h-4 w-4" />
+                                  </Button>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => handleDeleteQuestion(question.id)}
+                                  >
+                                    <Trash2 className="h-4 w-4 text-destructive" />
+                                  </Button>
                                 </div>
                               </div>
+                              {question.hasSubitems && question.subitems.length > 0 && (
+                                <div className="ml-6 mt-3 space-y-2 border-l-2 pl-4">
+                                  {question.subitems.map((subitem) => (
+                                    <div key={subitem.id} className="text-sm">
+                                      <div className="flex items-center justify-between">
+                                        <span>{subitem.text}</span>
+                                        <div className="flex items-center gap-2">
+                                          <span className="text-muted-foreground">
+                                            Вес: {subitem.weight}
+                                          </span>
+                                          {!subitem.isActive && (
+                                            <Badge variant="secondary" className="text-xs">
+                                              Неактивен
+                                            </Badge>
+                                          )}
+                                        </div>
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
                             </div>
                           ))}
                         </div>
-                      )}
-                    </div>
+                      </CardContent>
+                    </Card>
                   ))}
-                </div>
-              </CardContent>
-            </Card>
-          ))}
                 </div>
               )}
             </CardContent>
           </Card>
-        </div>
-      )}
 
-      {/* Диалог редактирования вопроса */}
+      {/* Editing Question Dialog */}
       {editingQuestion && (
-        <Dialog open={!!editingQuestion} onOpenChange={() => setEditingQuestion(null)}>
-          <DialogContent className="max-w-2xl">
+        <Dialog open={!!editingQuestion} onOpenChange={(open) => !open && setEditingQuestion(null)}>
+          <DialogContent>
             <DialogHeader>
               <DialogTitle>Редактировать вопрос</DialogTitle>
             </DialogHeader>
@@ -837,23 +1001,14 @@ export default function QuestionnaireDetailPage({ params }: { params: { id: stri
                   rows={2}
                 />
               </div>
-              <div>
-                <Label>Влияние критерия</Label>
-                <Textarea
-                  value={editingQuestion.explanation || ''}
-                  onChange={(e) => setEditingQuestion({ ...editingQuestion, explanation: e.target.value })}
-                  rows={2}
-                />
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label>Категория</Label>
-                  <Input
+               <div>
+                <Label>Категория</Label>
+                <Input
                     value={editingQuestion.category || ''}
                     onChange={(e) => setEditingQuestion({ ...editingQuestion, category: e.target.value })}
-                  />
-                </div>
-                <div>
+                />
+               </div>
+               <div>
                   <Label>Вес</Label>
                   <Input
                     type="number"
@@ -861,8 +1016,7 @@ export default function QuestionnaireDetailPage({ params }: { params: { id: stri
                     value={editingQuestion.weight}
                     onChange={(e) => setEditingQuestion({ ...editingQuestion, weight: parseFloat(e.target.value) })}
                   />
-                </div>
-              </div>
+               </div>
               <div className="flex items-center space-x-2">
                 <Switch
                   checked={editingQuestion.isActive}
@@ -892,6 +1046,28 @@ export default function QuestionnaireDetailPage({ params }: { params: { id: stri
             </div>
           </DialogContent>
         </Dialog>
+      )}
+
+      {/* Delete Metadata Field Dialog */}
+      <Dialog open={!!fieldToDelete} onOpenChange={(open) => !open && setFieldToDelete(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Удалить это поле?</DialogTitle>
+            <DialogDescription>
+              Это действие нельзя отменить. Поле будет удалено из этой версии анкеты.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex justify-end gap-2 mt-4">
+            <Button variant="outline" onClick={() => setFieldToDelete(null)} disabled={saving}>
+              Отмена
+            </Button>
+            <Button variant="destructive" onClick={proceedDeleteField} disabled={saving}>
+              Удалить
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+        </div>
       )}
     </div>
   );

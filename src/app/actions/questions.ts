@@ -116,3 +116,26 @@ export async function deleteSubitem(id: string) {
 
   revalidatePath('/admin/questionnaires');
 }
+
+export async function updateQuestionCategory(
+  versionId: string,
+  oldCategory: string,
+  newCategory: string
+) {
+  const session = await getServerSession(authOptions);
+  if (!session || session.user.role !== 'ADMIN') {
+    throw new Error('Unauthorized');
+  }
+
+  await prisma.question.updateMany({
+    where: {
+      versionId,
+      category: oldCategory,
+    },
+    data: {
+      category: newCategory,
+    },
+  });
+
+  revalidatePath('/admin/questionnaires');
+}
