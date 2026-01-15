@@ -54,58 +54,18 @@ async function main() {
 
   // Создание администратора
   console.log('👤 Создание администратора...');
-  const hashedPassword = await bcrypt.hash('admin123', 10);
+  const hashedPassword = await bcrypt.hash('arinaadmin', 10);
   const admin = await prisma.user.create({
     data: {
-      email: 'admin@example.com',
+      email: 'arina@gmail.com',
       password: hashedPassword,
-      name: 'Администратор',
+      name: 'Arina Admin',
       role: 'ADMIN',
       isActive: true,
     },
   });
 
-  console.log('✅ Администратор создан (email: admin@example.com, пароль: admin123)');
-
-  // Создание тестовой компании и менеджеров
-  console.log('🏢 Создание тестовой компании...');
-  const company = await prisma.company.create({
-    data: {
-      name: 'Test Company',
-      description: 'Тестовая компания для демонстрации',
-      isActive: true,
-      managers: {
-        create: [
-          { name: 'Иван Менеджер', isActive: true },
-          { name: 'Петр Продажник', isActive: true },
-        ],
-      },
-    },
-  });
-  console.log('✅ Тестовая компания "Test Company" создана с менеджерами');
-
-  // Создание аналитика
-  console.log('🕵️ Создание аналитика...');
-  const analystPassword = await bcrypt.hash('analyst123', 10);
-  const analyst = await prisma.user.create({
-    data: {
-      email: 'analyst@example.com',
-      password: analystPassword,
-      name: 'Аналитик Тестовый',
-      role: 'ANALYST',
-      isActive: true,
-    },
-  });
-
-  // Привязка аналитика к компании
-  await prisma.companyAnalyst.create({
-    data: {
-      companyId: company.id,
-      userId: analyst.id,
-    },
-  });
-
-  console.log('✅ Аналитик создан (email: analyst@example.com, пароль: analyst123) и привязан к компании');
+  console.log('✅ Администратор создан (email: arina@gmail.com, пароль: arinaadmin)');
 
   // Загрузка данных из JSON
   const jsonPath = path.join(process.cwd(), 'Аналитика контроля качества отдела продаж.json');
@@ -136,12 +96,6 @@ async function main() {
         type: sheet.sheet_name,
         isActive: true,
         scaleId: defaultScale.id,
-        companies: {
-          create: {
-            companyId: company.id,
-            isEnabled: true,
-          }
-        }
       },
     });
 
@@ -255,8 +209,7 @@ async function main() {
 
   console.log('\n🎉 База данных успешно заполнена!');
   console.log('\n📝 Данные для входа:');
-  console.log('   Admin: admin@example.com / admin123');
-  console.log('   Analyst: analyst@example.com / analyst123');
+  console.log('   Admin: arina@gmail.com / arinaadmin');
 }
 
 main()
