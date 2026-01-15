@@ -9,6 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { StatsCard } from '@/components/stats-card';
 import { ScoreChart } from '@/components/score-chart';
 import { DistributionChart } from '@/components/distribution-chart';
+import { CategoryProgressChart } from '@/components/category-progress-chart';
 import { BarChart3, TrendingUp, Users, FileText } from 'lucide-react';
 import { subMonths, subYears, format } from 'date-fns';
 import Link from 'next/link';
@@ -16,7 +17,12 @@ import Link from 'next/link';
 interface Stats {
   totalAudits: number;
   averageScore: number;
-  timeline: Array<{ month: string; averageScore: number; count: number }>;
+  timeline: Array<{ 
+    month: string; 
+    averageScore: number; 
+    count: number;
+    categories: Record<string, number>;
+  }>;
   distribution: { excellent: number; good: number; average: number; poor: number };
   managers: Array<{ id: string; name: string; averageScore: number; auditCount: number }>;
   questionnaires: Array<{ id: string; name: string; type: string; averageScore: number; auditCount: number }>;
@@ -171,19 +177,23 @@ export default function CompanyDashboard() {
 
       {/* Графики */}
       {stats.timeline && stats.timeline.length > 0 && (
-        <div className="grid gap-6 md:grid-cols-2">
-          <ScoreChart
-            data={stats.timeline}
-            title="Динамика показателей"
-            description="Изменение среднего балла по месяцам"
-          />
-          {stats.distribution && (
-            <DistributionChart
-              data={stats.distribution}
-              title="Распределение оценок"
-              description="Количество аудитов по диапазонам"
+        <div className="space-y-6">
+          <div className="grid gap-6 md:grid-cols-2">
+            <ScoreChart
+              data={stats.timeline}
+              title="Динамика показателей"
+              description="Изменение среднего балла по месяцам"
             />
-          )}
+            {stats.distribution && (
+              <DistributionChart
+                data={stats.distribution}
+                title="Распределение оценок"
+                description="Количество аудитов по диапазонам"
+              />
+            )}
+          </div>
+          
+          <CategoryProgressChart data={stats.timeline} />
         </div>
       )}
 

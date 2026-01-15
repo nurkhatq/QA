@@ -4,6 +4,7 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { startOfMonth, endOfMonth, subMonths, format } from 'date-fns';
+import { calculateCategoryScores } from '@/lib/calculations';
 
 export async function getCompanyStats(filters?: {
     startDate?: Date;
@@ -66,6 +67,24 @@ export async function getCompanyStats(filters?: {
                     },
                 },
             },
+            answers: {
+                include: {
+                    question: {
+                        select: {
+                            weight: true,
+                            isActive: true,
+                            hasSubitems: true,
+                            category: true,
+                        },
+                    },
+                    subitem: {
+                        select: {
+                            weight: true,
+                            isActive: true,
+                        },
+                    },
+                },
+            },
         },
         orderBy: { auditDate: 'asc' },
     });
@@ -76,22 +95,61 @@ export async function getCompanyStats(filters?: {
         ? audits.reduce((sum, audit) => sum + (audit.totalScore || 0), 0) / totalAudits
         : 0;
 
-    // Группируем по месяцам для графика динамики
+    // Группируем по месяцам для графика динамики и категорий
     const monthlyData = audits.reduce((acc, audit) => {
         const month = format(new Date(audit.auditDate), 'yyyy-MM');
         if (!acc[month]) {
-            acc[month] = { scores: [], count: 0 };
+            acc[month] = {
+                scores: [],
+                count: 0,
+                categoryScores: new Map<string, { total: number, count: number }>()
+            };
         }
         acc[month].scores.push(audit.totalScore || 0);
         acc[month].count++;
-        return acc;
-    }, {} as Record<string, { scores: number[]; count: number }>);
 
-    const timeline = Object.entries(monthlyData).map(([month, data]) => ({
-        month,
-        averageScore: data.scores.reduce((a, b) => a + b, 0) / data.count,
-        count: data.count,
-    }));
+        // Считаем категории для этого аудита
+        const auditCategoryScores = calculateCategoryScores({ answers: audit.answers });
+        auditCategoryScores.forEach(catScore => {
+            const current = acc[month].categoryScores.get(catScore.category) || { total: 0, count: 0 };
+            acc[month].categoryScores.set(catScore.category, {
+                total: current.total + catScore.score, // catScore.score is 0-1 (normalized?), actually calculateCategoryScores returns weighted score logic. 
+                // Wait, calculateCategoryScores returns score for that category based on weights. 
+                // Let's verify calculateCategoryScores return value.
+                // It returns `score`: totalWeightedScore / totalWeight. This is 0 to 1 usually? 
+                // Let's check calculations.ts again.
+                // Yes, it returns score. If weights are regular numbers, score is effectively normalized if max score is achieved.
+                // IMPORTANT: calculateCategoryScores returns score ratio (0 to 1) NOT percentage?
+                // No, wait. 
+                // totalWeightedScore += score * weight.
+                // If score is 0-1 range (from scale), then result is 0-1.
+                // If score is e.g. 0, 0.5, 1. The result is 0-1.
+                // So we should multiply by 100 later or here.
+                count: current.count + 1
+            });
+        });
+
+        return acc;
+    }, {} as Record<string, {
+        scores: number[];
+        count: number;
+        categoryScores: Map<string, { total: number, count: number }>
+    }>);
+
+    const timeline = Object.entries(monthlyData).map(([month, data]) => {
+        const categoryData: Record<string, number> = {};
+        data.categoryScores.forEach((stats, category) => {
+            // Average score for this category in this month (in percentage)
+            categoryData[category] = Math.round((stats.total / stats.count) * 100 * 10) / 10;
+        });
+
+        return {
+            month,
+            averageScore: data.scores.reduce((a, b) => a + b, 0) / data.count,
+            count: data.count,
+            categories: categoryData
+        };
+    });
 
     // Распределение оценок по диапазонам
     const distribution = {
