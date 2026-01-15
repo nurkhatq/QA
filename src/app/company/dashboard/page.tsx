@@ -12,6 +12,7 @@ import { QualityDistributionChart } from '@/components/quality-distribution-char
 import { TrendingUp, FileText, Award, AlertTriangle } from 'lucide-react';
 import { subYears, format } from 'date-fns';
 import Link from 'next/link';
+import { Skeleton } from '@/components/ui/skeleton';
 
 interface Stats {
   totalAudits: number;
@@ -40,6 +41,9 @@ interface Questionnaire {
   name: string;
 }
 
+const CACHE_KEY = 'company_dashboard_cache';
+const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
+
 export default function CompanyDashboard() {
   const [stats, setStats] = useState<Stats | null>(null);
   const [allManagers, setAllManagers] = useState<Manager[]>([]);
@@ -54,6 +58,7 @@ export default function CompanyDashboard() {
 
   useEffect(() => {
     loadAllOptions();
+    loadStatsWithCache();
   }, []);
 
   useEffect(() => {
@@ -62,22 +67,61 @@ export default function CompanyDashboard() {
 
   async function loadAllOptions() {
     try {
+      // Try to load from cache first
+      const cached = localStorage.getItem('dashboard_options');
+      if (cached) {
+        const { managers, questionnaires, timestamp } = JSON.parse(cached);
+        if (Date.now() - timestamp < CACHE_DURATION) {
+          setAllManagers(managers);
+          setAllQuestionnaires(questionnaires);
+          return;
+        }
+      }
+
       // Fetch all managers
       const managersRes = await fetch('/api/company/managers');
       if (managersRes.ok) {
         const managersData = await managersRes.json();
         setAllManagers(managersData);
-      }
 
-      // Fetch all questionnaires
-      const questionnairesRes = await fetch('/api/company/questionnaires');
-      if (questionnairesRes.ok) {
-        const questionnairesData = await questionnairesRes.json();
-        setAllQuestionnaires(questionnairesData);
+        // Fetch all questionnaires
+        const questionnairesRes = await fetch('/api/company/questionnaires');
+        if (questionnairesRes.ok) {
+          const questionnairesData = await questionnairesRes.json();
+          setAllQuestionnaires(questionnairesData);
+
+          // Cache the options
+          localStorage.setItem('dashboard_options', JSON.stringify({
+            managers: managersData,
+            questionnaires: questionnairesData,
+            timestamp: Date.now()
+          }));
+        }
       }
     } catch (err) {
       console.error('Ошибка загрузки опций:', err);
     }
+  }
+
+  async function loadStatsWithCache() {
+    // Try to load from cache first
+    const cached = localStorage.getItem(CACHE_KEY);
+    if (cached) {
+      try {
+        const { data, timestamp } = JSON.parse(cached);
+        if (Date.now() - timestamp < CACHE_DURATION) {
+          setStats(data);
+          setLoading(false);
+          // Still fetch fresh data in background
+          loadStats();
+          return;
+        }
+      } catch (e) {
+        console.error('Error parsing cache:', e);
+      }
+    }
+    // No valid cache, load normally
+    loadStats();
   }
 
   async function loadStats() {
@@ -99,6 +143,12 @@ export default function CompanyDashboard() {
       
       const data = await response.json();
       setStats(data);
+      
+      // Cache the result
+      localStorage.setItem(CACHE_KEY, JSON.stringify({
+        data,
+        timestamp: Date.now()
+      }));
     } catch (err) {
       console.error('Ошибка загрузки статистики:', err);
       setError(err instanceof Error ? err.message : 'Произошла ошибка');
@@ -107,8 +157,54 @@ export default function CompanyDashboard() {
     }
   }
 
-  if (loading) {
-    return <div className="flex items-center justify-center h-screen">Загрузка...</div>;
+  if (loading && !stats) {
+    return (
+      <div className="space-y-6">
+        <div>
+          <Skeleton className="h-10 w-64" />
+          <Skeleton className="h-4 w-96 mt-2" />
+        </div>
+        <Card>
+          <CardHeader>
+            <Skeleton className="h-6 w-32" />
+            <Skeleton className="h-4 w-64 mt-2" />
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+              {[...Array(5)].map((_, i) => (
+                <Skeleton key={i} className="h-10 w-full" />
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+          {[...Array(4)].map((_, i) => (
+            <Card key={i}>
+              <CardHeader className="pb-2">
+                <Skeleton className="h-4 w-24" />
+              </CardHeader>
+              <CardContent>
+                <Skeleton className="h-8 w-20" />
+                <Skeleton className="h-3 w-32 mt-2" />
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+        <div className="grid gap-6 md:grid-cols-2">
+          {[...Array(2)].map((_, i) => (
+            <Card key={i}>
+              <CardHeader>
+                <Skeleton className="h-6 w-40" />
+                <Skeleton className="h-4 w-56 mt-2" />
+              </CardHeader>
+              <CardContent>
+                <Skeleton className="h-[300px] w-full" />
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      </div>
+    );
   }
 
   if (!stats) {
