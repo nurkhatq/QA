@@ -50,12 +50,7 @@ export default async function ReportPage({ params }: { params: { id: string } })
             <p className="text-muted-foreground">{audit.version.questionnaire.name}</p>
           </div>
         </div>
-        <Link href={`/api/reports/${params.id}/pdf`} target="_blank">
-          <Button>
-            <FileDown className="mr-2 h-4 w-4" />
-            Экспорт в PDF
-          </Button>
-        </Link>
+
       </div>
 
       {/* Общая информация */}

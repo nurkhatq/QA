@@ -5,7 +5,9 @@ import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { revalidatePath } from 'next/cache';
 import { AuditStatus } from '@prisma/client';
-import { calculateAuditScore } from '@/lib/calculations';
+import { calculateAuditScore, calculateCategoryScores } from '@/lib/calculations';
+import { format } from 'date-fns';
+import { ru } from 'date-fns/locale';
 
 export async function getAudits(filters?: {
   companyId?: string;
@@ -499,17 +501,58 @@ export async function completeAudit(auditId: string) {
 
   if (companyUsers.length > 0) {
     console.log(`Sending emails to ${companyUsers.length} company users...`);
-    await Promise.allSettled(
-      companyUsers.map(user =>
-        sendAuditCompletionEmail({
-          to: user.email,
-          companyName: audit.company.name,
-          auditName: audit.version.questionnaire.name,
-          score: totalScore,
-          auditId: audit.id,
-        })
-      )
-    );
+
+    // Подготовка данных для письма
+    // Нам нужен объект audit с ответами для расчета категорий. 
+    // audit из findUnique выше может не содержать всех ответов/вопросов если include был неполный?
+    // Мы делали include simplified. Давайте сделаем полноценный запрос или используем результат calculateAndSaveAuditScore если он возвращает данные (он возвращает число).
+    // ЛУЧШЕ: Запросим полные данные аудита заново, так надежнее, чем городить include в начале.
+
+    const fullAudit = await prisma.audit.findUnique({
+      where: { id: auditId },
+      include: {
+        manager: true,
+        company: {
+          include: { users: true }
+        },
+        version: {
+          include: {
+            questionnaire: true,
+            questions: {
+              where: { isActive: true },
+              include: { subitems: true }
+            }
+          }
+        },
+        answers: {
+          include: {
+            question: true,
+            subitem: true
+          }
+        }
+      }
+    });
+
+    if (fullAudit) {
+      const categoryScores = calculateCategoryScores({ answers: fullAudit.answers });
+
+      await Promise.allSettled(
+        companyUsers.map(user =>
+          sendAuditCompletionEmail({
+            to: user.email,
+            companyName: fullAudit.company.name,
+            auditName: fullAudit.version.questionnaire.name,
+            score: totalScore,
+            auditId: fullAudit.id,
+            managerName: fullAudit.manager?.name || 'Не указан',
+            auditDate: format(fullAudit.auditDate, 'dd MMMM yyyy, HH:mm', { locale: ru }),
+            categories: categoryScores.map((c) => ({ name: c.category, score: c.score })),
+            positiveComment: fullAudit.positiveComment || undefined,
+            negativeComment: fullAudit.negativeComment || undefined,
+          })
+        )
+      );
+    }
   }
 
   revalidatePath('/analyst/audits');
