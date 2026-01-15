@@ -17,6 +17,7 @@ import { useToast } from '@/hooks/use-toast';
 interface Question {
   id: string;
   text: string;
+  description?: string | null;
   category?: string;
   hasSubitems: boolean;
   subitems?: Array<{ id: string; text: string }>;
@@ -354,6 +355,11 @@ export default function AuditPage() {
               {questions.map((question) => (
                 <div key={question.id} className="space-y-4 pb-6 border-b last:border-b-0 last:pb-0">
                   <div className="font-medium">{question.text}</div>
+                  {question.description && (
+                    <div className="text-sm text-muted-foreground mt-1 mb-2">
+                       {question.description}
+                    </div>
+                  )}
 
                   {question.hasSubitems && question.subitems ? (
                     <div className="space-y-4 pl-4">

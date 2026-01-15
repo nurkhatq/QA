@@ -881,6 +881,7 @@ export default function QuestionnaireDetailPage({ params }: { params: { id: stri
                            </div>
                         </div>
                         <Button onClick={handleAddQuestion} disabled={saving}>
+                          Добавить
                         </Button>
                       </div>
                     </DialogContent>
