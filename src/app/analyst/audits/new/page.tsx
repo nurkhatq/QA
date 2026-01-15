@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -9,9 +9,20 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
-import { Loader2 } from 'lucide-react';
+import { Combobox, ComboboxOption } from '@/components/ui/combobox';
+import { Loader2, Save, AlertCircle, Clock } from 'lucide-react';
 import { Spinner } from '@/components/spinner';
 import { useToast } from '@/hooks/use-toast';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import {
+  saveDraft,
+  loadDraft,
+  clearDraft,
+  saveRecentSelection,
+  getRecentCompanyIds,
+  getRecentManagerIds,
+  cleanupOldDrafts,
+} from '@/lib/draft-manager';
 
 export default function NewAuditPage() {
   const router = useRouter();
@@ -26,6 +37,11 @@ export default function NewAuditPage() {
   const [metadata, setMetadata] = useState<Record<string, any>>({});
   const [isLoading, setIsLoading] = useState(false);
   const [isLoadingMetadata, setIsLoadingMetadata] = useState(false);
+  const [hasDraft, setHasDraft] = useState(false);
+  const [lastSaved, setLastSaved] = useState<number | null>(null);
+  const [recentCompanyIds, setRecentCompanyIds] = useState<string[]>([]);
+  const [recentManagerIds, setRecentManagerIds] = useState<string[]>([]);
+  const autoSaveTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   // Auto-fill date fields
   useEffect(() => {
@@ -47,6 +63,88 @@ export default function NewAuditPage() {
       }
     }
   }, [metadataFields]);
+
+  // Load draft and recent selections on mount
+  useEffect(() => {
+    cleanupOldDrafts();
+    
+    const draft = loadDraft();
+    if (draft) {
+      setHasDraft(true);
+    }
+    
+    setRecentCompanyIds(getRecentCompanyIds());
+  }, []);
+
+  // Update recent manager IDs when company changes
+  useEffect(() => {
+    if (selectedCompany) {
+      setRecentManagerIds(getRecentManagerIds(selectedCompany));
+    }
+  }, [selectedCompany]);
+
+  // Auto-save draft
+  const saveCurrentDraft = useCallback(() => {
+    if (selectedCompany && selectedQuestionnaire) {
+      const companyName = companies.find(c => c.id === selectedCompany)?.name || '';
+      const managerName = managers.find(m => m.id === selectedManager)?.name || '';
+      const questionnaireName = questionnaires.find(q => q.questionnaireId === selectedQuestionnaire)?.questionnaireName || '';
+      
+      saveDraft({
+        companyId: selectedCompany,
+        companyName,
+        managerId: selectedManager,
+        managerName,
+        questionnaireId: selectedQuestionnaire,
+        questionnaireName,
+        metadata,
+      });
+      
+      setLastSaved(Date.now());
+    }
+  }, [selectedCompany, selectedManager, selectedQuestionnaire, metadata, companies, managers, questionnaires]);
+
+  // Auto-save timer
+  useEffect(() => {
+    if (autoSaveTimerRef.current) {
+      clearTimeout(autoSaveTimerRef.current);
+    }
+    
+    if (selectedCompany && selectedQuestionnaire) {
+      autoSaveTimerRef.current = setTimeout(() => {
+        saveCurrentDraft();
+      }, 30000); // 30 seconds
+    }
+    
+    return () => {
+      if (autoSaveTimerRef.current) {
+        clearTimeout(autoSaveTimerRef.current);
+      }
+    };
+  }, [selectedCompany, selectedQuestionnaire, metadata, saveCurrentDraft]);
+
+  // Restore draft function
+  const restoreDraft = useCallback(() => {
+    const draft = loadDraft();
+    if (draft) {
+      setSelectedCompany(draft.companyId);
+      setSelectedManager(draft.managerId);
+      setSelectedQuestionnaire(draft.questionnaireId);
+      setMetadata(draft.metadata);
+      setHasDraft(false);
+      
+      toast({
+        title: "Черновик восстановлен",
+        description: "Данные успешно загружены",
+      });
+    }
+  }, [toast]);
+
+  // Dismiss draft
+  const dismissDraft = useCallback(() => {
+    clearDraft();
+    setHasDraft(false);
+  }, []);
 
   useEffect(() => {
     async function loadData() {
@@ -171,6 +269,21 @@ export default function NewAuditPage() {
 
       if (response.ok) {
         const audit = await response.json();
+        
+        // Save recent selection
+        const companyName = companies.find(c => c.id === selectedCompany)?.name || '';
+        const managerName = managers.find(m => m.id === selectedManager)?.name || '';
+        
+        saveRecentSelection({
+          companyId: selectedCompany,
+          companyName,
+          managerId: selectedManager,
+          managerName,
+        });
+        
+        // Clear draft
+        clearDraft();
+        
         toast({
           title: "Успешно",
           description: "Аудит создан",
@@ -198,49 +311,64 @@ export default function NewAuditPage() {
         <p className="text-muted-foreground">Создайте новый аудит для компании</p>
       </div>
 
+      {/* Draft notification */}
+      {hasDraft && (
+        <Alert>
+          <AlertCircle className="h-4 w-4" />
+          <AlertDescription className="flex items-center justify-between">
+            <span>У вас есть несохраненный черновик. Восстановить?</span>
+            <div className="flex gap-2">
+              <Button size="sm" variant="outline" onClick={dismissDraft}>
+                Отменить
+              </Button>
+              <Button size="sm" onClick={restoreDraft}>
+                Восстановить
+              </Button>
+            </div>
+          </AlertDescription>
+        </Alert>
+      )}
+
       <Card>
         <CardHeader>
           <CardTitle>Параметры аудита</CardTitle>
           <CardDescription>
             Выберите компанию и тип аудита
+            {lastSaved && (
+              <span className="flex items-center gap-1 text-xs text-green-600 mt-1">
+                <Save className="h-3 w-3" />
+                Черновик сохранен {new Date(lastSaved).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}
+              </span>
+            )}
           </CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="company">Компания</Label>
-              <Select value={selectedCompany} onValueChange={setSelectedCompany}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Выберите компанию" />
-                </SelectTrigger>
-                <SelectContent>
-                  {companies.map((company) => (
-                    <SelectItem key={company.id} value={company.id}>
-                      {company.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Combobox
+                options={companies.map(c => ({ value: c.id, label: c.name }))}
+                value={selectedCompany}
+                onValueChange={setSelectedCompany}
+                placeholder="Выберите компанию"
+                searchPlaceholder="Поиск компании..."
+                emptyText="Компания не найдена"
+                recentValues={recentCompanyIds}
+              />
             </div>
 
             <div className="space-y-2">
               <Label htmlFor="manager">Менеджер</Label>
-              <Select
+              <Combobox
+                options={managers.map(m => ({ value: m.id, label: m.name }))}
                 value={selectedManager}
                 onValueChange={setSelectedManager}
+                placeholder={selectedCompany ? "Выберите менеджера" : "Сначала выберите компанию"}
+                searchPlaceholder="Поиск менеджера..."
+                emptyText="Менеджер не найден"
                 disabled={!selectedCompany}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder={selectedCompany ? "Выберите менеджера" : "Сначала выберите компанию"} />
-                </SelectTrigger>
-                <SelectContent>
-                  {managers.map((manager) => (
-                    <SelectItem key={manager.id} value={manager.id}>
-                      {manager.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                recentValues={recentManagerIds}
+              />
             </div>
 
             <div className="space-y-2">
