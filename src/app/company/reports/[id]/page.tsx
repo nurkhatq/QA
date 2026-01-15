@@ -79,7 +79,7 @@ export default async function ReportPage({ params }: { params: { id: string } })
                 <p className="font-medium">{audit.manager.name}</p>
               </div>
             )}
-            {audit.metadata && audit.version.questionnaire.metadataFields?.map((field) => {
+            {audit.metadata && audit.version.metadataFields?.map((field: any) => {
               const value = audit.metadata?.[field.id];
               if (!value) return null;
 

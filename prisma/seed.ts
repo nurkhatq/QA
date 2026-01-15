@@ -5,15 +5,37 @@ import * as path from 'path';
 
 const prisma = new PrismaClient();
 
+async function cleanDatabase() {
+  console.log('🧹 Очистка базы данных...');
+  // Удаляем в порядке обратной зависимости
+  await prisma.auditHistory.deleteMany();
+  await prisma.auditAnswer.deleteMany();
+  await prisma.audit.deleteMany();
+  await prisma.companyInputData.deleteMany();
+  await prisma.companyQuestionnaire.deleteMany();
+  await prisma.companyAnalyst.deleteMany();
+  await prisma.questionSubitem.deleteMany();
+  await prisma.question.deleteMany();
+  await prisma.questionnaireMetadataField.deleteMany();
+  await prisma.questionnaireVersion.deleteMany();
+  await prisma.questionnaire.deleteMany();
+  await prisma.manager.deleteMany();
+  await prisma.user.deleteMany(); // Удаляем пользователей, включая админа, чтобы пересоздать
+  await prisma.company.deleteMany();
+  await prisma.scoreScaleValue.deleteMany();
+  await prisma.scoreScale.deleteMany();
+  console.log('✅ База данных очищена');
+}
+
 async function main() {
   console.log('🌱 Начало заполнения базы данных...');
 
+  await cleanDatabase();
+
   // Создание дефолтной шкалы оценок
   console.log('📊 Создание шкалы оценок...');
-  const defaultScale = await prisma.scoreScale.upsert({
-    where: { id: 'default-scale' },
-    update: {},
-    create: {
+  const defaultScale = await prisma.scoreScale.create({
+    data: {
       id: 'default-scale',
       name: 'Стандартная шкала',
       description: 'Шкала оценок: 1 / 0.5 / 0',
@@ -33,10 +55,8 @@ async function main() {
   // Создание администратора
   console.log('👤 Создание администратора...');
   const hashedPassword = await bcrypt.hash('admin123', 10);
-  const admin = await prisma.user.upsert({
-    where: { email: 'admin@example.com' },
-    update: {},
-    create: {
+  const admin = await prisma.user.create({
+    data: {
       email: 'admin@example.com',
       password: hashedPassword,
       name: 'Администратор',
@@ -46,6 +66,46 @@ async function main() {
   });
 
   console.log('✅ Администратор создан (email: admin@example.com, пароль: admin123)');
+
+  // Создание тестовой компании и менеджеров
+  console.log('🏢 Создание тестовой компании...');
+  const company = await prisma.company.create({
+    data: {
+      name: 'Test Company',
+      description: 'Тестовая компания для демонстрации',
+      isActive: true,
+      managers: {
+        create: [
+          { name: 'Иван Менеджер', isActive: true },
+          { name: 'Петр Продажник', isActive: true },
+        ],
+      },
+    },
+  });
+  console.log('✅ Тестовая компания "Test Company" создана с менеджерами');
+
+  // Создание аналитика
+  console.log('🕵️ Создание аналитика...');
+  const analystPassword = await bcrypt.hash('analyst123', 10);
+  const analyst = await prisma.user.create({
+    data: {
+      email: 'analyst@example.com',
+      password: analystPassword,
+      name: 'Аналитик Тестовый',
+      role: 'ANALYST',
+      isActive: true,
+    },
+  });
+
+  // Привязка аналитика к компании
+  await prisma.companyAnalyst.create({
+    data: {
+      companyId: company.id,
+      userId: analyst.id,
+    },
+  });
+
+  console.log('✅ Аналитик создан (email: analyst@example.com, пароль: analyst123) и привязан к компании');
 
   // Загрузка данных из JSON
   const jsonPath = path.join(process.cwd(), 'Аналитика контроля качества отдела продаж.json');
@@ -76,6 +136,12 @@ async function main() {
         type: sheet.sheet_name,
         isActive: true,
         scaleId: defaultScale.id,
+        companies: {
+          create: {
+            companyId: company.id,
+            isEnabled: true,
+          }
+        }
       },
     });
 
@@ -102,7 +168,24 @@ async function main() {
       // Структура с секциями (например, "Аудит звонков 1ого касания")
       for (const [sectionName, items] of Object.entries(sheet.sections)) {
         if (sectionName === 'Информация о сделке') {
-          // Это метаданные, не критерии оценки
+          // Создаем поля метаданных из секции "Информация о сделке"
+          let metadataOrder = 1;
+          for (const itemText of items as string[]) {
+            // Определяем тип поля (упрощенно)
+            let fieldType = 'text';
+            if (itemText.includes('Дата')) fieldType = 'date';
+
+            await prisma.questionnaireMetadataField.create({
+              data: {
+                versionId: version.id,
+                fieldName: itemText,
+                fieldType: fieldType,
+                isRequired: true,
+                order: metadataOrder++,
+              }
+            });
+          }
+          console.log(`   📝 Созданы поля метаданных: ${(items as string[]).length}`);
           continue;
         }
 
@@ -122,14 +205,27 @@ async function main() {
       }
     } else if (sheet.columns) {
       // Структура с простым списком колонок
-      let infoFieldsCount = 0;
-      const infoFields = ['Дата аудита', 'Дата', 'Ссылка', 'Длительность', 'Менеджер', 'Статус', 'Тип'];
+      const infoFields = ['Дата аудита', 'Дата', 'Ссылка', 'Длительность', 'Менеджер', 'Статус', 'Тип', 'За какой день'];
+
+      let metadataOrder = 1;
 
       for (const column of sheet.columns) {
-        // Пропускаем информационные поля
+        // Проверяем, является ли это информационным полем (метаданные)
         const isInfoField = infoFields.some(field => column.includes(field));
+
         if (isInfoField) {
-          infoFieldsCount++;
+          let fieldType = 'text';
+          if (column.includes('Дата')) fieldType = 'date';
+
+          await prisma.questionnaireMetadataField.create({
+            data: {
+              versionId: version.id,
+              fieldName: column,
+              fieldType: fieldType,
+              isRequired: true,
+              order: metadataOrder++,
+            }
+          });
           continue;
         }
 
@@ -149,6 +245,9 @@ async function main() {
           },
         });
       }
+      if (metadataOrder > 1) {
+        console.log(`   📝 Созданы поля метаданных: ${metadataOrder - 1}`);
+      }
     }
 
     console.log(`✅ Анкета "${questionnaire.name}" создана с ${questionOrder - 1} вопросами`);
@@ -156,8 +255,8 @@ async function main() {
 
   console.log('\n🎉 База данных успешно заполнена!');
   console.log('\n📝 Данные для входа:');
-  console.log('   Email: admin@example.com');
-  console.log('   Пароль: admin123');
+  console.log('   Admin: admin@example.com / admin123');
+  console.log('   Analyst: analyst@example.com / analyst123');
 }
 
 main()
