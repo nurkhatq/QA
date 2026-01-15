@@ -434,6 +434,10 @@ async function calculateAndSaveAuditScore(auditId: string): Promise<number> {
   return totalScore;
 }
 
+import { sendAuditCompletionEmail } from '@/lib/email';
+
+// ... (existing imports)
+
 export async function completeAudit(auditId: string) {
   const session = await getServerSession(authOptions);
   if (!session) {
@@ -442,6 +446,18 @@ export async function completeAudit(auditId: string) {
 
   const audit = await prisma.audit.findUnique({
     where: { id: auditId },
+    include: {
+      company: {
+        include: {
+          users: true,
+        },
+      },
+      version: {
+        include: {
+          questionnaire: true,
+        },
+      },
+    },
   });
 
   if (!audit) {
@@ -477,6 +493,24 @@ export async function completeAudit(auditId: string) {
       comment: 'Аудит завершён',
     },
   });
+
+  // Отправка уведомлений на почту
+  const companyUsers = audit.company.users.filter(u => u.role === 'COMPANY' && u.isActive);
+
+  if (companyUsers.length > 0) {
+    console.log(`Sending emails to ${companyUsers.length} company users...`);
+    await Promise.allSettled(
+      companyUsers.map(user =>
+        sendAuditCompletionEmail({
+          to: user.email,
+          companyName: audit.company.name,
+          auditName: audit.version.questionnaire.name,
+          score: totalScore,
+          auditId: audit.id,
+        })
+      )
+    );
+  }
 
   revalidatePath('/analyst/audits');
   revalidatePath(`/analyst/audits/${auditId}`);
