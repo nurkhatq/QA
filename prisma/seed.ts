@@ -79,7 +79,15 @@ async function main() {
 
   console.log('📋 Создание анкет из JSON...');
 
-  // Обрабатываем каждый лист (кроме "Вводных")
+  // Map for renaming generic categories
+  const categoryMapping: Record<string, string> = {
+    'Аудит звонков 2ого касания': 'Качество звонка',
+    'Аудит СРМ': 'Ведение сделки',
+    'Аудит нереализованных сделок': 'Обоснованность закрытия',
+    'Аудит переписок': 'Качество переписки',
+    'Аудит заполнения внутренних отчетов': 'Качество отчета',
+  };
+
   for (const sheet of jsonData.sheets) {
     if (sheet.sheet_name === 'Вводные') {
       console.log(`⏭️  Пропускаем лист "${sheet.sheet_name}" (это вводные данные компании)`);
@@ -115,32 +123,87 @@ async function main() {
       data: { currentVersionId: version.id },
     });
 
-    // Создаем вопросы
+    // --- Обработка Метаданных (Audit Input Data) ---
+    let metadataOrder = 1;
+
+    // 1. Приоритет: явный массив input_data
+    if (sheet.input_data) {
+      for (const field of sheet.input_data) {
+        let fieldType = 'text';
+        let options: string | null = null;
+        let finalFieldName = field;
+
+        const lowerField = field.toLowerCase();
+        if (lowerField.includes('дата')) {
+          fieldType = 'date';
+        } else if (lowerField.includes('ссылка')) {
+          fieldType = 'url';
+        } else if (lowerField.includes('тип звонка')) {
+          fieldType = 'radio';
+          options = 'Входящий;Исходящий';
+          finalFieldName = 'Тип звонка';
+        }
+
+        await prisma.questionnaireMetadataField.create({
+          data: {
+            versionId: version.id,
+            fieldName: finalFieldName,
+            fieldType: fieldType,
+            options: options,
+            isRequired: true,
+            order: metadataOrder++,
+          }
+        });
+      }
+      console.log(`   📝 Созданы поля метаданных (из input_data): ${sheet.input_data.length}`);
+    }
+    // 2. Fallback: Специальная логика для "Аудит звонков 1ого касания" (Sheet 2), где метаданные в секции
+    else if (sheet.sheet_index === 2 && sheet.sections && sheet.sections['Информация о сделке']) {
+      const fields = sheet.sections['Информация о сделке'];
+      for (const field of fields as string[]) {
+        let fieldType = 'text';
+        let options: string | null = null;
+        let finalFieldName = field;
+
+        const lowerField = field.toLowerCase();
+        if (lowerField.includes('дата')) {
+          fieldType = 'date';
+        } else if (lowerField.includes('ссылка')) {
+          fieldType = 'url';
+        } else if (lowerField.includes('тип звонка')) {
+          fieldType = 'radio';
+          options = 'Входящий;Исходящий';
+          finalFieldName = 'Тип звонка';
+        }
+
+        await prisma.questionnaireMetadataField.create({
+          data: {
+            versionId: version.id,
+            fieldName: finalFieldName,
+            fieldType: fieldType,
+            options: options,
+            isRequired: true,
+            order: metadataOrder++,
+          }
+        });
+      }
+      console.log(`   📝 Созданы поля метаданных (из секции "Информация о сделке"): ${fields.length}`);
+    }
+
+    // --- Обработка Вопросов ---
     let questionOrder = 1;
 
     if (sheet.sections) {
-      // Структура с секциями (например, "Аудит звонков 1ого касания")
       for (const [sectionName, items] of Object.entries(sheet.sections)) {
-        if (sectionName === 'Информация о сделке') {
-          // Создаем поля метаданных из секции "Информация о сделке"
-          let metadataOrder = 1;
-          for (const itemText of items as string[]) {
-            // Определяем тип поля (упрощенно)
-            let fieldType = 'text';
-            if (itemText.includes('Дата')) fieldType = 'date';
-
-            await prisma.questionnaireMetadataField.create({
-              data: {
-                versionId: version.id,
-                fieldName: itemText,
-                fieldType: fieldType,
-                isRequired: true,
-                order: metadataOrder++,
-              }
-            });
-          }
-          console.log(`   📝 Созданы поля метаданных: ${(items as string[]).length}`);
+        // Пропускаем секцию, если она была использована как источник метаданных (только для Sheet 2)
+        if (sheet.sheet_index === 2 && sectionName === 'Информация о сделке') {
           continue;
+        }
+
+        // Определяем имя категории
+        let categoryName = sectionName;
+        if (sectionName === 'придумать название категории') {
+          categoryName = categoryMapping[sheet.sheet_name] || 'Общие вопросы';
         }
 
         for (const itemText of items as string[]) {
@@ -148,7 +211,7 @@ async function main() {
             data: {
               versionId: version.id,
               text: itemText,
-              category: sectionName,
+              category: categoryName,
               weight: 1.0,
               order: questionOrder++,
               isActive: true,
@@ -158,50 +221,8 @@ async function main() {
         }
       }
     } else if (sheet.columns) {
-      // Структура с простым списком колонок
-      const infoFields = ['Дата аудита', 'Дата', 'Ссылка', 'Длительность', 'Менеджер', 'Статус', 'Тип', 'За какой день'];
-
-      let metadataOrder = 1;
-
-      for (const column of sheet.columns) {
-        // Проверяем, является ли это информационным полем (метаданные)
-        const isInfoField = infoFields.some(field => column.includes(field));
-
-        if (isInfoField) {
-          let fieldType = 'text';
-          if (column.includes('Дата')) fieldType = 'date';
-
-          await prisma.questionnaireMetadataField.create({
-            data: {
-              versionId: version.id,
-              fieldName: column,
-              fieldType: fieldType,
-              isRequired: true,
-              order: metadataOrder++,
-            }
-          });
-          continue;
-        }
-
-        // Пропускаем итоговые колонки
-        if (column === 'Балл' || column.includes('Что было хорошо') || column.includes('Плохо')) {
-          continue;
-        }
-
-        await prisma.question.create({
-          data: {
-            versionId: version.id,
-            text: column,
-            weight: 1.0,
-            order: questionOrder++,
-            isActive: true,
-            hasSubitems: false,
-          },
-        });
-      }
-      if (metadataOrder > 1) {
-        console.log(`   📝 Созданы поля метаданных: ${metadataOrder - 1}`);
-      }
+      // Fallback для старых форматов без sections (на всякий случай)
+      console.log('   ⚠️ Использован fallback для columns (не рекомендуется)');
     }
 
     console.log(`✅ Анкета "${questionnaire.name}" создана с ${questionOrder - 1} вопросами`);

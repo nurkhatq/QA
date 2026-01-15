@@ -8,6 +8,7 @@ import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Loader2 } from 'lucide-react';
 import { Spinner } from '@/components/spinner';
 import { useToast } from '@/hooks/use-toast';
@@ -25,6 +26,27 @@ export default function NewAuditPage() {
   const [metadata, setMetadata] = useState<Record<string, any>>({});
   const [isLoading, setIsLoading] = useState(false);
   const [isLoadingMetadata, setIsLoadingMetadata] = useState(false);
+
+  // Auto-fill date fields
+  useEffect(() => {
+    if (metadataFields.length > 0) {
+      const newMetadata = { ...metadata };
+      let hasChanges = false;
+      
+      const today = new Date().toISOString().split('T')[0];
+      
+      metadataFields.forEach(field => {
+        if (field.fieldType === 'date' && !newMetadata[field.id]) {
+          newMetadata[field.id] = today;
+          hasChanges = true;
+        }
+      });
+      
+      if (hasChanges) {
+        setMetadata(newMetadata);
+      }
+    }
+  }, [metadataFields]);
 
   useEffect(() => {
     async function loadData() {
@@ -306,6 +328,20 @@ export default function NewAuditPage() {
                         placeholder={`Введите ${field.fieldName.toLowerCase()}`}
                         rows={3}
                       />
+                    )}
+                    {field.fieldType === 'radio' && field.options && (
+                      <RadioGroup
+                         value={metadata[field.id] || ''}
+                         onValueChange={(value) => setMetadata({ ...metadata, [field.id]: value })}
+                         className="flex flex-col space-y-2"
+                      >
+                        {field.options.split(';').map((option: string) => (
+                          <div key={option} className="flex items-center space-x-2">
+                            <RadioGroupItem value={option} id={`${field.id}-${option}`} />
+                            <Label htmlFor={`${field.id}-${option}`}>{option}</Label>
+                          </div>
+                        ))}
+                      </RadioGroup>
                     )}
                   </div>
                 ))}
