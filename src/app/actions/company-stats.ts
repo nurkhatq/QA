@@ -209,13 +209,59 @@ export async function getCompanyStats(filters?: {
         auditCount: q.count,
     }));
 
+    // Overall category averages (for radar chart)
+    const overallCategoryStats = audits.reduce((acc, audit) => {
+        const categoryScores = calculateCategoryScores({ answers: audit.answers });
+        categoryScores.forEach(catScore => {
+            if (!acc[catScore.category]) {
+                acc[catScore.category] = { total: 0, count: 0 };
+            }
+            acc[catScore.category].total += catScore.score;
+            acc[catScore.category].count += 1;
+        });
+        return acc;
+    }, {} as Record<string, { total: number; count: number }>);
+
+    const categoryAverages = Object.entries(overallCategoryStats).map(([category, stats]) => ({
+        category,
+        score: Math.round((stats.total / stats.count) * 100 * 10) / 10,
+    }));
+
+    // Calculate previous period stats for trend comparison
+    let previousPeriodScore: number | null = null;
+    let scoreChange: number | null = null;
+
+    if (filters?.startDate && filters?.endDate) {
+        const periodLength = new Date(filters.endDate).getTime() - new Date(filters.startDate).getTime();
+        const previousStart = new Date(new Date(filters.startDate).getTime() - periodLength);
+        const previousEnd = new Date(filters.startDate);
+
+        const previousWhere = {
+            ...where,
+            auditDate: { gte: previousStart, lte: previousEnd },
+        };
+
+        const previousAudits = await prisma.audit.findMany({
+            where: previousWhere,
+            select: { totalScore: true },
+        });
+
+        if (previousAudits.length > 0) {
+            previousPeriodScore = previousAudits.reduce((sum, a) => sum + (a.totalScore || 0), 0) / previousAudits.length;
+            scoreChange = averageScore - previousPeriodScore;
+        }
+    }
+
     return {
         totalAudits,
         averageScore: Math.round(averageScore * 100) / 100,
+        previousPeriodScore: previousPeriodScore ? Math.round(previousPeriodScore * 100) / 100 : null,
+        scoreChange: scoreChange ? Math.round(scoreChange * 100) / 100 : null,
         timeline,
         distribution,
         managers,
         questionnaires,
+        categoryAverages,
     };
 }
 

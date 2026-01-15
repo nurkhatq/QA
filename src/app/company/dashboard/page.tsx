@@ -6,17 +6,19 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { StatsCard } from '@/components/stats-card';
-import { ScoreChart } from '@/components/score-chart';
-import { DistributionChart } from '@/components/distribution-chart';
-import { CategoryProgressChart } from '@/components/category-progress-chart';
-import { BarChart3, TrendingUp, Users, FileText } from 'lucide-react';
+import { ScoreTrendChart } from '@/components/score-trend-chart';
+import { CategoryRadarChart } from '@/components/category-radar-chart';
+import { QualityDistributionChart } from '@/components/quality-distribution-chart';
+import { BarChart3, TrendingUp, Users, FileText, Award, AlertTriangle } from 'lucide-react';
 import { subMonths, subYears, format } from 'date-fns';
 import Link from 'next/link';
+import { Badge } from '@/components/ui/badge';
 
 interface Stats {
   totalAudits: number;
   averageScore: number;
+  previousPeriodScore: number | null;
+  scoreChange: number | null;
   timeline: Array<{ 
     month: string; 
     averageScore: number; 
@@ -26,15 +28,15 @@ interface Stats {
   distribution: { excellent: number; good: number; average: number; poor: number };
   managers: Array<{ id: string; name: string; averageScore: number; auditCount: number }>;
   questionnaires: Array<{ id: string; name: string; type: string; averageScore: number; auditCount: number }>;
+  categoryAverages: Array<{ category: string; score: number }>;
 }
 
 export default function CompanyDashboard() {
   const [stats, setStats] = useState<Stats | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  // Устанавливаем период за последний год, чтобы точно захватить все данные
   const [startDate, setStartDate] = useState(format(subYears(new Date(), 1), 'yyyy-MM-dd'));
-  const [endDate, setEndDate] = useState(format(new Date(Date.now() + 86400000), 'yyyy-MM-dd')); // Завтра
+  const [endDate, setEndDate] = useState(format(new Date(Date.now() + 86400000), 'yyyy-MM-dd'));
   const [selectedManager, setSelectedManager] = useState<string>('all');
   const [selectedQuestionnaire, setSelectedQuestionnaire] = useState<string>('all');
 
@@ -52,7 +54,6 @@ export default function CompanyDashboard() {
       if (selectedManager !== 'all') params.append('managerId', selectedManager);
       if (selectedQuestionnaire !== 'all') params.append('questionnaireId', selectedQuestionnaire);
 
-      console.log('Загрузка статистики с параметрами:', params.toString());
       const response = await fetch(`/api/company/stats?${params.toString()}`);
       
       if (!response.ok) {
@@ -60,7 +61,6 @@ export default function CompanyDashboard() {
       }
       
       const data = await response.json();
-      console.log('Получены данные:', data);
       setStats(data);
     } catch (err) {
       console.error('Ошибка загрузки статистики:', err);
@@ -78,11 +78,19 @@ export default function CompanyDashboard() {
     return <div className="flex items-center justify-center h-screen">Нет данных</div>;
   }
 
+  // Find best and worst categories
+  const bestCategory = stats.categoryAverages.length > 0 
+    ? stats.categoryAverages.reduce((max, cat) => cat.score > max.score ? cat : max)
+    : null;
+  const worstCategory = stats.categoryAverages.length > 0
+    ? stats.categoryAverages.reduce((min, cat) => cat.score < min.score ? cat : min)
+    : null;
+
   return (
     <div className="space-y-6">
       <div>
         <h1 className="text-3xl font-bold">Дашборд</h1>
-        <p className="text-muted-foreground">Общая статистика и аналитика</p>
+        <p className="text-muted-foreground">Аналитика качества работы</p>
       </div>
 
       {/* Фильтры */}
@@ -147,62 +155,97 @@ export default function CompanyDashboard() {
         </CardContent>
       </Card>
 
-      {/* Ключевые показатели */}
+      {/* KPI Cards */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <StatsCard
-          title="Средний балл"
-          value={`${stats.averageScore || 0}%`}
-          description="За выбранный период"
-          icon={TrendingUp}
-        />
-        <StatsCard
-          title="Всего аудитов"
-          value={stats.totalAudits || 0}
-          description="Завершенных проверок"
-          icon={FileText}
-        />
-        <StatsCard
-          title="Менеджеров"
-          value={stats.managers?.length || 0}
-          description="Проверено сотрудников"
-          icon={Users}
-        />
-        <StatsCard
-          title="Отличных оценок"
-          value={stats.distribution?.excellent || 0}
-          description="90% и выше"
-          icon={BarChart3}
-        />
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Средний балл</CardTitle>
+            <TrendingUp className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{stats.averageScore.toFixed(1)}%</div>
+            {stats.scoreChange !== null && (
+              <p className={`text-xs ${stats.scoreChange >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                {stats.scoreChange >= 0 ? '+' : ''}{stats.scoreChange.toFixed(1)}% от предыдущего периода
+              </p>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Всего аудитов</CardTitle>
+            <FileText className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{stats.totalAudits}</div>
+            <p className="text-xs text-muted-foreground">
+              Завершенных проверок
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Лучший навык</CardTitle>
+            <Award className="h-4 w-4 text-green-600" />
+          </CardHeader>
+          <CardContent>
+            {bestCategory ? (
+              <>
+                <div className="text-2xl font-bold">{bestCategory.score.toFixed(1)}%</div>
+                <p className="text-xs text-muted-foreground truncate">
+                  {bestCategory.category}
+                </p>
+              </>
+            ) : (
+              <div className="text-sm text-muted-foreground">Нет данных</div>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Требует внимания</CardTitle>
+            <AlertTriangle className="h-4 w-4 text-orange-600" />
+          </CardHeader>
+          <CardContent>
+            {worstCategory ? (
+              <>
+                <div className="text-2xl font-bold">{worstCategory.score.toFixed(1)}%</div>
+                <p className="text-xs text-muted-foreground truncate">
+                  {worstCategory.category}
+                </p>
+              </>
+            ) : (
+              <div className="text-sm text-muted-foreground">Нет данных</div>
+            )}
+          </CardContent>
+        </Card>
       </div>
 
-      {/* Графики */}
+      {/* Main Charts */}
       {stats.timeline && stats.timeline.length > 0 && (
-        <div className="space-y-6">
-          <div className="grid gap-6 md:grid-cols-2">
-            <ScoreChart
-              data={stats.timeline}
-              title="Динамика показателей"
-              description="Изменение среднего балла по месяцам"
-            />
-            {stats.distribution && (
-              <DistributionChart
-                data={stats.distribution}
-                title="Распределение оценок"
-                description="Количество аудитов по диапазонам"
-              />
-            )}
-          </div>
-          
-          <CategoryProgressChart data={stats.timeline} />
+        <div className="grid gap-6 md:grid-cols-2">
+          <ScoreTrendChart 
+            data={stats.timeline.map(t => ({ month: t.month, averageScore: t.averageScore }))}
+            scoreChange={stats.scoreChange}
+          />
+          <QualityDistributionChart data={stats.distribution} />
         </div>
       )}
 
-      {/* Статистика по менеджерам */}
+      {/* Category Radar */}
+      {stats.categoryAverages && stats.categoryAverages.length > 0 && (
+        <CategoryRadarChart data={stats.categoryAverages} />
+      )}
+
+      {/* Manager Leaderboard */}
       <Card>
         <CardHeader>
           <div className="flex items-center justify-between">
             <div>
-              <CardTitle>Статистика по менеджерам</CardTitle>
+              <CardTitle>Рейтинг менеджеров</CardTitle>
               <CardDescription>Топ сотрудников по результатам аудитов</CardDescription>
             </div>
             <Link href="/company/managers">
@@ -211,22 +254,33 @@ export default function CompanyDashboard() {
           </div>
         </CardHeader>
         <CardContent>
-          <div className="space-y-3">
+          <div className="space-y-4">
             {stats.managers && stats.managers.length > 0 ? (
               stats.managers
                 .sort((a, b) => b.averageScore - a.averageScore)
                 .slice(0, 5)
-                .map((manager) => (
+                .map((manager, index) => (
                   <Link key={manager.id} href={`/company/managers/${manager.id}`}>
-                    <div className="flex items-center justify-between p-3 border rounded-lg hover:bg-accent transition-colors cursor-pointer">
-                      <div>
+                    <div className="flex items-center gap-4 p-3 border rounded-lg hover:bg-accent transition-colors cursor-pointer">
+                      <div className="flex items-center justify-center w-8 h-8 rounded-full bg-primary/10 text-primary font-bold">
+                        {index + 1}
+                      </div>
+                      <div className="flex-1">
                         <p className="font-medium">{manager.name}</p>
                         <p className="text-sm text-muted-foreground">
                           {manager.auditCount} {manager.auditCount === 1 ? 'аудит' : 'аудитов'}
                         </p>
                       </div>
-                      <div className="text-right">
-                        <p className="text-2xl font-bold">{manager.averageScore.toFixed(1)}%</p>
+                      <div className="flex items-center gap-2">
+                        <div className="w-24 h-2 bg-muted rounded-full overflow-hidden">
+                          <div 
+                            className="h-full bg-gradient-to-r from-blue-500 to-blue-600 rounded-full"
+                            style={{ width: `${manager.averageScore}%` }}
+                          />
+                        </div>
+                        <span className="text-lg font-bold min-w-[60px] text-right">
+                          {manager.averageScore.toFixed(1)}%
+                        </span>
                       </div>
                     </div>
                   </Link>
@@ -234,37 +288,6 @@ export default function CompanyDashboard() {
             ) : (
               <p className="text-center text-muted-foreground py-8">
                 Нет данных по менеджерам за выбранный период
-              </p>
-            )}
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Статистика по анкетам */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Статистика по типам аудитов</CardTitle>
-          <CardDescription>Результаты по различным анкетам</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-3">
-            {stats.questionnaires && stats.questionnaires.length > 0 ? (
-              stats.questionnaires.map((q) => (
-                <div key={q.id} className="flex items-center justify-between p-3 border rounded-lg">
-                  <div>
-                    <p className="font-medium">{q.name}</p>
-                    <p className="text-sm text-muted-foreground">
-                      {q.auditCount} {q.auditCount === 1 ? 'аудит' : 'аудитов'}
-                    </p>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-2xl font-bold">{q.averageScore.toFixed(1)}%</p>
-                  </div>
-                </div>
-              ))
-            ) : (
-              <p className="text-center text-muted-foreground py-8">
-                Нет данных по анкетам за выбранный период
               </p>
             )}
           </div>
