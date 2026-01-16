@@ -17,6 +17,7 @@ export async function POST(
     const manager = await createManager({
       name: body.name,
       companyId: params.id,
+      email: body.email,
     });
 
     return NextResponse.json(manager);

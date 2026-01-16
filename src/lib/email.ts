@@ -21,6 +21,7 @@ export async function sendAuditCompletionEmail({
   categories,
   positiveComment,
   negativeComment,
+  items,
 }: {
   to: string;
   companyName: string;
@@ -32,6 +33,7 @@ export async function sendAuditCompletionEmail({
   categories: Array<{ name: string; score: number }>;
   positiveComment?: string;
   negativeComment?: string;
+  items?: Array<{ text: string; score: number; maxScore: number; comment?: string | null }>;
 }) {
   const reportUrl = `${process.env.NEXTAUTH_URL}/company/reports/${auditId}`;
   const scorePercent = (score * 100).toFixed(1); // 87.5
@@ -50,6 +52,11 @@ export async function sendAuditCompletionEmail({
           <p style="color: #6b7280; margin: 5px 0 0;">${auditDate}</p>
         </div>
 
+        <div style="margin-bottom: 20px;">
+          <p style="font-size: 16px;">Добрый день, <strong>${managerName}</strong>!</p>
+          <p style="font-size: 14px; color: #4b5563;">Направляем вам результаты аудита по анкете "${auditName}".</p>
+        </div>
+
         <div style="background-color: #f9fafb; padding: 24px; border-radius: 12px; margin-bottom: 24px;">
           <table style="width: 100%; border-collapse: collapse;">
             <tr>
@@ -59,10 +66,6 @@ export async function sendAuditCompletionEmail({
             <tr>
               <td style="padding-bottom: 8px; color: #6b7280; font-size: 14px;">Менеджер</td>
               <td style="padding-bottom: 8px; text-align: right; font-weight: 600;">${managerName}</td>
-            </tr>
-            <tr>
-              <td style="padding-bottom: 8px; color: #6b7280; font-size: 14px;">Анкета</td>
-              <td style="padding-bottom: 8px; text-align: right; font-weight: 600;">${auditName}</td>
             </tr>
             <tr>
               <td style="padding-top: 16px; font-size: 18px; font-weight: bold;">Итоговый балл</td>
@@ -87,9 +90,39 @@ export async function sendAuditCompletionEmail({
           </table>
         </div>
 
+        ${items && items.length > 0 ? `
+          <div style="margin-bottom: 30px;">
+            <h3 style="border-bottom: 2px solid #e5e7eb; padding-bottom: 10px; margin-bottom: 20px;">Детализация по вопросам</h3>
+            <table style="width: 100%; border-collapse: collapse; font-size: 14px;">
+              <thead>
+                <tr style="background-color: #f3f4f6;">
+                  <th style="padding: 10px; text-align: left; border-radius: 6px 0 0 6px;">Вопрос</th>
+                  <th style="padding: 10px; text-align: center;">Балл</th>
+                  <th style="padding: 10px; text-align: left; border-radius: 0 6px 6px 0;">Комментарий</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${items.map(item => `
+                  <tr style="border-bottom: 1px solid #e5e7eb;">
+                    <td style="padding: 12px 8px; vertical-align: top;">${item.text}</td>
+                    <td style="padding: 12px 8px; text-align: center; white-space: nowrap; vertical-align: top;">
+                      <span style="font-weight: 600; color: ${item.score === item.maxScore ? '#16a34a' : item.score === 0 ? '#dc2626' : '#d97706'}">
+                        ${item.score} / ${item.maxScore}
+                      </span>
+                    </td>
+                    <td style="padding: 12px 8px; color: #4b5563; vertical-align: top;">
+                      ${item.comment || '-'}
+                    </td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+          </div>
+        ` : ''}
+
         ${(positiveComment || negativeComment) ? `
           <div style="margin-bottom: 30px;">
-            <h3 style="border-bottom: 2px solid #e5e7eb; padding-bottom: 10px; margin-bottom: 20px;">Комментарии аналитика</h3>
+            <h3 style="border-bottom: 2px solid #e5e7eb; padding-bottom: 10px; margin-bottom: 20px;">Общие комментарии</h3>
             
             ${positiveComment ? `
               <div style="margin-bottom: 20px;">

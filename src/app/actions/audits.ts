@@ -511,7 +511,13 @@ export async function completeAudit(auditId: string) {
       },
       version: {
         include: {
-          questionnaire: true,
+          questionnaire: {
+            include: {
+              scale: {
+                include: { values: true }
+              }
+            }
+          },
           questions: {
             where: { isActive: true },
             include: { subitems: true }
@@ -532,6 +538,29 @@ export async function completeAudit(auditId: string) {
 
     const categoryScores = calculateCategoryScores({ answers: fullAudit.answers });
 
+    // Находим максимальное значение шкалы
+    const maxScaleValue = Math.max(
+      ...(fullAudit.version.questionnaire.scale?.values.map((v) => v.value) || [1])
+    );
+
+    const items = fullAudit.answers
+      .filter((a) => a.question && a.question.isActive)
+      .sort((a, b) => (a.question!.order) - (b.question!.order))
+      .map((a) => {
+        const weight = a.subitem ? a.subitem.weight : a.question!.weight;
+        const maxScore = weight * maxScaleValue;
+        const text = a.subitem
+          ? `${a.question!.text}: ${a.subitem.text}`
+          : a.question!.text;
+
+        return {
+          text,
+          score: a.score ?? 0,
+          maxScore,
+          comment: a.comment,
+        };
+      });
+
     await sendAuditCompletionEmail({
       to: fullAudit.manager.email,
       companyName: fullAudit.company.name,
@@ -543,6 +572,7 @@ export async function completeAudit(auditId: string) {
       categories: categoryScores.map((c) => ({ name: c.category, score: c.score })),
       positiveComment: fullAudit.positiveComment || undefined,
       negativeComment: fullAudit.negativeComment || undefined,
+      items,
     });
   } else {
     if (!fullAudit?.company.isEmailReportingEnabled) {
