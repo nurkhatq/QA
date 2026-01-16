@@ -99,6 +99,7 @@ export default function AuditPage() {
   const [answers, setAnswers] = useState<Record<string, { score: number | null; comment: string }>>({});
   const [positiveComment, setPositiveComment] = useState('');
   const [negativeComment, setNegativeComment] = useState('');
+  const [metadata, setMetadata] = useState<Record<string, any>>({});
   const [isSaving, setIsSaving] = useState(false);
   const [isCompleting, setIsCompleting] = useState(false);
   const [isCompleteDialogOpen, setIsCompleteDialogOpen] = useState(false);
@@ -138,19 +139,24 @@ export default function AuditPage() {
           };
         }
       });
-      setAnswers(answersMap);
-      setPositiveComment(data.positiveComment || '');
-      setNegativeComment(data.negativeComment || '');
       
-      // Auto-restore draft if it has more answers
+      // ВАЖНО: Сначала проверяем draft, он имеет приоритет!
       const draft = loadAnswersDraft(params.id as string);
-      if (draft && Object.keys(draft.answers).length > Object.keys(answersMap).length) {
+      if (draft && Object.keys(draft.answers).length > 0) {
+        // Используем draft вместо данных с сервера
         setAnswers(draft.answers);
         toast({
           title: "Прогресс восстановлен",
           description: "Ваши ответы были автоматически восстановлены",
         });
+      } else {
+        // Нет draft - используем данные с сервера
+        setAnswers(answersMap);
       }
+      
+      setPositiveComment(data.positiveComment || '');
+      setNegativeComment(data.negativeComment || '');
+      setMetadata(data.metadata || {});
     } catch (err) {
       console.error('Error loading audit:', err);
       setError(err instanceof Error ? err.message : 'Произошла ошибка при загрузке');
@@ -435,36 +441,47 @@ export default function AuditPage() {
           <CardHeader>
             <CardTitle>Информация об аудите</CardTitle>
           </CardHeader>
-          <CardContent className="space-y-3">
+          <CardContent className="space-y-4">
             {audit.manager && (
               <div>
                 <Label className="text-muted-foreground">Менеджер</Label>
                 <p className="font-medium">{audit.manager.name}</p>
               </div>
             )}
-            {audit.metadata && audit.version.metadataFields?.map((field) => {
-              const value = audit.metadata?.[field.id];
-              if (!value) return null;
-
-              return (
-                <div key={field.id}>
-                  <Label className="text-muted-foreground">{field.fieldName}</Label>
-                  <p className="font-medium">
-                    {field.fieldType === 'url' ? (
-                      <a href={value} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">
-                        {value}
-                      </a>
-                    ) : (
-                      value
-                    )}
-                  </p>
-                </div>
-              );
-            })}
+            {audit.metadata && Object.keys(audit.metadata).length > 0 && (
+              <div className="space-y-3 pt-2 border-t">
+                <h4 className="font-semibold">Вводные данные аудита</h4>
+                {audit.version.metadataFields.map((field) => (
+                  <div key={field.id}>
+                    <Label className="text-muted-foreground">{field.fieldName}</Label>
+                    <p className="font-medium">{audit.metadata?.[field.id] || '-'}</p>
+                  </div>
+                ))}
+              </div>
+            )}
           </CardContent>
         </Card>
       )}
 
+      {/* Вводные данные компании */}
+      {audit.company.inputData && audit.company.inputData.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Вводные данные компании</CardTitle>
+            <CardDescription>Скрипты, регламенты и доступы для проверки</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {audit.company.inputData
+              .filter((data: any) => !data.questionnaireId || data.questionnaireId === audit.version.questionnaire.id)
+              .map((data: any) => (
+                <div key={data.id}>
+                  <Label className="text-muted-foreground">{data.fieldName}</Label>
+                  <p className="font-medium whitespace-pre-wrap">{data.fieldValue}</p>
+                </div>
+              ))}
+          </CardContent>
+        </Card>
+      )}
 
       {/* Вводные данные менеджера */}
       {audit.manager?.inputData && audit.manager.inputData.length > 0 && (
