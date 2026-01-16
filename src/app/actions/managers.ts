@@ -75,6 +75,7 @@ export async function getManager(id: string) {
 export async function createManager(data: {
   name: string;
   companyId: string;
+  email?: string;
 }) {
   const session = await getServerSession(authOptions);
   if (!session || session.user.role !== 'ADMIN') {
@@ -85,6 +86,7 @@ export async function createManager(data: {
     data: {
       name: data.name,
       companyId: data.companyId,
+      email: data.email,
     },
   });
 
@@ -98,6 +100,7 @@ export async function updateManager(
   data: {
     name?: string;
     isActive?: boolean;
+    email?: string;
   }
 ) {
   const session = await getServerSession(authOptions);

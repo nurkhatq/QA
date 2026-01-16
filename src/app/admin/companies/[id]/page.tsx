@@ -31,6 +31,7 @@ type CompanyData = {
   description: string | null;
   connectionDate: Date;
   isActive: boolean;
+  isEmailReportingEnabled: boolean;
   inputData: Array<{
     id: string;
     fieldName: string;
@@ -42,6 +43,7 @@ type CompanyData = {
   managers: Array<{
     id: string;
     name: string;
+    email: string | null;
     isActive: boolean;
   }>;
   questionnaires: Array<{
@@ -83,6 +85,7 @@ export default function CompanyDetailPage({ params }: { params: { id: string } }
   const [description, setDescription] = useState('');
   const [connectionDate, setConnectionDate] = useState('');
   const [isActive, setIsActive] = useState(true);
+  const [isEmailReportingEnabled, setIsEmailReportingEnabled] = useState(false);
 
   // Вводные данные
   const [inputData, setInputData] = useState<Array<{
@@ -95,6 +98,7 @@ export default function CompanyDetailPage({ params }: { params: { id: string } }
 
   // Менеджеры
   const [newManagerName, setNewManagerName] = useState('');
+  const [newManagerEmail, setNewManagerEmail] = useState('');
 
   // Аналитики
   const [assignedAnalysts, setAssignedAnalysts] = useState<any[]>([]);
@@ -127,6 +131,7 @@ export default function CompanyDetailPage({ params }: { params: { id: string } }
       setDescription(companyData.description || '');
       setConnectionDate(new Date(companyData.connectionDate).toISOString().split('T')[0]);
       setIsActive(companyData.isActive);
+      setIsEmailReportingEnabled(companyData.isEmailReportingEnabled || false);
       setInputData(companyData.inputData);
 
       // Загружаем все анкеты
@@ -160,6 +165,7 @@ export default function CompanyDetailPage({ params }: { params: { id: string } }
           description,
           connectionDate: new Date(connectionDate),
           isActive,
+          isEmailReportingEnabled,
         }),
       });
 
@@ -184,107 +190,37 @@ export default function CompanyDetailPage({ params }: { params: { id: string } }
     }
   }
 
-  async function handleSaveInputData() {
-    setSaving(true);
-    try {
-      const res = await fetch(`/api/admin/companies/${params.id}/input-data`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ fields: inputData }),
-      });
-
-      if (res.ok) {
-        toast({
-          title: "Успешно",
-          description: "Вводные данные сохранены",
-        });
-        loadData();
-      } else {
-        throw new Error('Ошибка при сохранении');
-      }
-    } catch (error) {
-      console.error('Error saving:', error);
-      toast({
-        title: "Ошибка",
-        description: "Не удалось сохранить вводные данные",
-        variant: "destructive",
-      });
-    } finally {
-      setSaving(false);
-    }
-  }
-
   async function handleToggleQuestionnaire(questionnaireId: string) {
-    try {
-      const res = await fetch(`/api/admin/companies/${params.id}/questionnaires`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ questionnaireId }),
-      });
+     try {
+       const res = await fetch(`/api/admin/companies/${params.id}/questionnaires`, {
+         method: 'POST',
+         headers: { 'Content-Type': 'application/json' },
+         body: JSON.stringify({ questionnaireId }),
+       });
+ 
+       if (res.ok) {
+         loadData();
+       }
+     } catch (error) {
+       console.error('Error toggling questionnaire:', error);
+     }
+   }
+ 
+   function addInputField() {
+     setInputData([...inputData, { fieldName: '', fieldValue: '', isConfidential: false, questionnaireId: null, order: inputData.length }]);
+   }
+ 
+   function removeInputField(index: number) {
+     setInputData(inputData.filter((_, i) => i !== index));
+   }
+ 
+   function updateInputField(index: number, field: string, value: any) {
+     const updated = [...inputData];
+     updated[index] = { ...updated[index], [field]: value };
+     setInputData(updated);
+   }
 
-      if (res.ok) {
-        loadData();
-      }
-    } catch (error) {
-      console.error('Error toggling questionnaire:', error);
-    }
-  }
-
-  function addInputField() {
-    setInputData([...inputData, { fieldName: '', fieldValue: '', isConfidential: false, questionnaireId: null, order: inputData.length }]);
-  }
-
-  function removeInputField(index: number) {
-    setInputData(inputData.filter((_, i) => i !== index));
-  }
-
-  function updateInputField(index: number, field: string, value: any) {
-    const updated = [...inputData];
-    updated[index] = { ...updated[index], [field]: value };
-    setInputData(updated);
-  }
-
-  async function handleAddManager() {
-    if (!newManagerName.trim()) {
-      toast({
-        title: "Ошибка",
-        description: "Введите имя менеджера",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    setSaving(true);
-    try {
-      const res = await fetch(`/api/admin/companies/${params.id}/managers`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: newManagerName }),
-      });
-
-      if (res.ok) {
-        setNewManagerName('');
-        toast({
-          title: "Успешно",
-          description: "Менеджер добавлен",
-        });
-        loadData();
-      } else {
-        throw new Error('Ошибка при добавлении менеджера');
-      }
-    } catch (error) {
-      console.error('Error adding manager:', error);
-      toast({
-        title: "Ошибка",
-        description: "Не удалось добавить менеджера",
-        variant: "destructive",
-      });
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  async function handleToggleManager(managerId: string, isActive: boolean) {
+   async function handleToggleManager(managerId: string, isActive: boolean) {
     try {
       const res = await fetch(`/api/admin/companies/${params.id}/managers/${managerId}`, {
         method: 'PUT',
@@ -524,6 +460,15 @@ export default function CompanyDetailPage({ params }: { params: { id: string } }
               />
               <Label htmlFor="isActive">Компания активна</Label>
             </div>
+
+            <div className="flex items-center space-x-2">
+              <Switch
+                id="isEmailReportingEnabled"
+                checked={isEmailReportingEnabled}
+                onCheckedChange={setIsEmailReportingEnabled}
+              />
+              <Label htmlFor="isEmailReportingEnabled">Отправлять отчеты менеджерам на почту</Label>
+            </div>
           </div>
 
           <Button onClick={handleSaveBasicInfo} disabled={saving}>
@@ -634,13 +579,19 @@ export default function CompanyDetailPage({ params }: { params: { id: string } }
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          {/* Форма добавления менеджера */}
-          <div className="flex gap-2">
-            <div className="flex-1">
+          <div className="flex gap-2 flex-col md:flex-row">
+            <div className="flex-1 space-y-2 md:space-y-0 md:flex md:gap-2">
               <Input
-                placeholder="Введите ФИО менеджера"
+                placeholder="ФИО менеджера"
                 value={newManagerName}
                 onChange={(e) => setNewManagerName(e.target.value)}
+                className="flex-1"
+              />
+              <Input
+                placeholder="Email (для отчетов)"
+                value={newManagerEmail}
+                onChange={(e) => setNewManagerEmail(e.target.value)}
+                className="flex-1"
                 onKeyPress={(e) => e.key === 'Enter' && handleAddManager()}
               />
             </div>
@@ -649,13 +600,13 @@ export default function CompanyDetailPage({ params }: { params: { id: string } }
               Добавить
             </Button>
           </div>
-
-          {/* Список менеджеров */}
+          
           <div className="space-y-2">
             {company.managers?.map((manager) => (
               <div key={manager.id} className="flex items-center justify-between p-3 border rounded-lg">
                 <div>
                   <p className="font-medium">{manager.name}</p>
+                  {manager.email && <p className="text-sm text-muted-foreground">{manager.email}</p>}
                 </div>
                 <div className="flex items-center gap-2">
                   <Button

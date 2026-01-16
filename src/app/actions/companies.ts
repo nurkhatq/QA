@@ -93,10 +93,10 @@ export async function createCompany(data: {
 export async function updateCompany(
   id: string,
   data: {
-    name?: string;
     description?: string;
     connectionDate?: Date;
     isActive?: boolean;
+    isEmailReportingEnabled?: boolean;
   }
 ) {
   const session = await getServerSession(authOptions);

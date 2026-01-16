@@ -111,12 +111,6 @@ export async function sendAuditCompletionEmail({
           </div>
         ` : ''}
 
-        <div style="text-align: center; margin-top: 40px;">
-          <a href="${reportUrl}" style="background-color: #111827; color: #ffffff; padding: 12px 30px; text-decoration: none; border-radius: 6px; font-weight: 600; display: inline-block;">
-            Открыть полный отчет на сайте
-          </a>
-        </div>
-        
         <div style="text-align: center; margin-top: 40px; color: #9ca3af; font-size: 12px;">
           <p>Это автоматическое уведомление от системы контроля качества.</p>
         </div>

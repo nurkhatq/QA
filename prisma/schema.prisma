@@ -32,9 +32,10 @@ model Company {
   name           String
   description    String?
   connectionDate DateTime               @default(now())
-  isActive       Boolean                @default(true)
-  createdAt      DateTime               @default(now())
-  updatedAt      DateTime               @updatedAt
+  isActive                Boolean                @default(true)
+  isEmailReportingEnabled Boolean                @default(false) // Включена ли отправка отчетов на почту менеджерам
+  createdAt               DateTime               @default(now())
+  updatedAt               DateTime               @updatedAt
   audits         Audit[]
   inputData      CompanyInputData[]
   questionnaires CompanyQuestionnaire[]
@@ -64,6 +65,7 @@ model Manager {
   name      String
   companyId String
   isActive  Boolean  @default(true)
+  email     String?  // Email менеджера для получения отчетов
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   audits    Audit[]

@@ -501,61 +501,54 @@ export async function completeAudit(auditId: string) {
   });
 
   // Отправка уведомлений на почту
-  const companyUsers = audit.company.users.filter(u => u.role === 'COMPANY' && u.isActive);
-
-  if (companyUsers.length > 0) {
-    console.log(`Sending emails to ${companyUsers.length} company users...`);
-
-    // Подготовка данных для письма
-    // Нам нужен объект audit с ответами для расчета категорий. 
-    // audit из findUnique выше может не содержать всех ответов/вопросов если include был неполный?
-    // Мы делали include simplified. Давайте сделаем полноценный запрос или используем результат calculateAndSaveAuditScore если он возвращает данные (он возвращает число).
-    // ЛУЧШЕ: Запросим полные данные аудита заново, так надежнее, чем городить include в начале.
-
-    const fullAudit = await prisma.audit.findUnique({
-      where: { id: auditId },
-      include: {
-        manager: true,
-        company: {
-          include: { users: true }
-        },
-        version: {
-          include: {
-            questionnaire: true,
-            questions: {
-              where: { isActive: true },
-              include: { subitems: true }
-            }
-          }
-        },
-        answers: {
-          include: {
-            question: true,
-            subitem: true
+  // Запросим полные данные аудита для формирования письма
+  const fullAudit = await prisma.audit.findUnique({
+    where: { id: auditId },
+    include: {
+      manager: true,
+      company: {
+        include: { users: true }
+      },
+      version: {
+        include: {
+          questionnaire: true,
+          questions: {
+            where: { isActive: true },
+            include: { subitems: true }
           }
         }
+      },
+      answers: {
+        include: {
+          question: true,
+          subitem: true
+        }
       }
+    }
+  });
+
+  if (fullAudit && fullAudit.company.isEmailReportingEnabled && fullAudit.manager?.email) {
+    console.log(`Sending email to manager ${fullAudit.manager.name} (${fullAudit.manager.email})...`);
+
+    const categoryScores = calculateCategoryScores({ answers: fullAudit.answers });
+
+    await sendAuditCompletionEmail({
+      to: fullAudit.manager.email,
+      companyName: fullAudit.company.name,
+      auditName: fullAudit.version.questionnaire.name,
+      score: totalScore / 100,
+      auditId: fullAudit.id,
+      managerName: fullAudit.manager?.name || 'Не указан',
+      auditDate: formatInTimeZone(fullAudit.auditDate, 'Asia/Almaty', 'dd MMMM yyyy, HH:mm', { locale: ru }),
+      categories: categoryScores.map((c) => ({ name: c.category, score: c.score })),
+      positiveComment: fullAudit.positiveComment || undefined,
+      negativeComment: fullAudit.negativeComment || undefined,
     });
-
-    if (fullAudit) {
-      const categoryScores = calculateCategoryScores({ answers: fullAudit.answers });
-
-      await Promise.allSettled(
-        companyUsers.map(user =>
-          sendAuditCompletionEmail({
-            to: user.email,
-            companyName: fullAudit.company.name,
-            auditName: fullAudit.version.questionnaire.name,
-            score: totalScore / 100,
-            auditId: fullAudit.id,
-            managerName: fullAudit.manager?.name || 'Не указан',
-            auditDate: formatInTimeZone(fullAudit.auditDate, 'Asia/Almaty', 'dd MMMM yyyy, HH:mm', { locale: ru }),
-            categories: categoryScores.map((c) => ({ name: c.category, score: c.score })),
-            positiveComment: fullAudit.positiveComment || undefined,
-            negativeComment: fullAudit.negativeComment || undefined,
-          })
-        )
-      );
+  } else {
+    if (!fullAudit?.company.isEmailReportingEnabled) {
+      console.log('Email reporting is disabled for this company.');
+    } else if (!fullAudit?.manager?.email) {
+      console.log('Manager email not set, skipping email report.');
     }
   }
 
