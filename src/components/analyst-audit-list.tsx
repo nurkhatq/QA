@@ -29,6 +29,8 @@ interface Props {
 }
 
 export function AnalystAuditList({ initialAudits }: Props) {
+  const ITEMS_PER_PAGE = 15;
+  const [currentPage, setCurrentPage] = useState(1);
   const [filterCompany, setFilterCompany] = useState<string>('all');
   const [filterManager, setFilterManager] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
@@ -36,6 +38,16 @@ export function AnalystAuditList({ initialAudits }: Props) {
   // Extract unique options
   const companies = Array.from(new Set(initialAudits.map(a => a.company.name))).sort();
   const managers = Array.from(new Set(initialAudits.map(a => a.manager?.name).filter(Boolean))).sort() as string[];
+
+  // Reset page when filters change
+  const handleFilterChange = (setter: (val: string) => void, val: string) => {
+    setter(val);
+    setCurrentPage(1);
+  };
+  const handleSearchChange = (val: string) => {
+    setSearchQuery(val);
+    setCurrentPage(1);
+  };
 
   const filteredAudits = initialAudits.filter(audit => {
     const matchesCompany = filterCompany === 'all' || audit.company.name === filterCompany;
@@ -47,6 +59,12 @@ export function AnalystAuditList({ initialAudits }: Props) {
 
     return matchesCompany && matchesManager && matchesSearch;
   });
+
+  const totalPages = Math.ceil(filteredAudits.length / ITEMS_PER_PAGE);
+  const paginatedAudits = filteredAudits.slice(
+    (currentPage - 1) * ITEMS_PER_PAGE,
+    currentPage * ITEMS_PER_PAGE
+  );
 
   return (
     <Card>
@@ -60,11 +78,11 @@ export function AnalystAuditList({ initialAudits }: Props) {
           <Input 
             placeholder="Поиск..." 
             value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
+            onChange={(e) => handleSearchChange(e.target.value)}
             className="md:w-64"
           />
           
-          <Select value={filterCompany} onValueChange={setFilterCompany}>
+          <Select value={filterCompany} onValueChange={(v) => handleFilterChange(setFilterCompany, v)}>
             <SelectTrigger className="md:w-48">
               <SelectValue placeholder="Компания" />
             </SelectTrigger>
@@ -76,7 +94,7 @@ export function AnalystAuditList({ initialAudits }: Props) {
             </SelectContent>
           </Select>
 
-          <Select value={filterManager} onValueChange={setFilterManager}>
+          <Select value={filterManager} onValueChange={(v) => handleFilterChange(setFilterManager, v)}>
             <SelectTrigger className="md:w-48">
               <SelectValue placeholder="Менеджер" />
             </SelectTrigger>
@@ -114,7 +132,7 @@ export function AnalystAuditList({ initialAudits }: Props) {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filteredAudits.map((audit) => (
+              {paginatedAudits.map((audit) => (
                 <TableRow key={audit.id}>
                   <TableCell className="font-medium">{audit.company.name}</TableCell>
                   <TableCell>{audit.manager?.name || '—'}</TableCell>
@@ -136,7 +154,7 @@ export function AnalystAuditList({ initialAudits }: Props) {
                   </TableCell>
                 </TableRow>
               ))}
-              {filteredAudits.length === 0 && (
+              {paginatedAudits.length === 0 && (
                 <TableRow>
                   <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
                     Ничего не найдено
@@ -146,6 +164,30 @@ export function AnalystAuditList({ initialAudits }: Props) {
             </TableBody>
           </Table>
         </div>
+        
+        {totalPages > 1 && (
+          <div className="flex items-center justify-end space-x-2 py-4">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+              disabled={currentPage === 1}
+            >
+              Назад
+            </Button>
+            <div className="text-sm text-muted-foreground">
+              Страница {currentPage} из {totalPages}
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+              disabled={currentPage === totalPages}
+            >
+              Вперед
+            </Button>
+          </div>
+        )}
       </CardContent>
     </Card>
   );
