@@ -482,79 +482,8 @@ export default function AuditPage() {
         </CardContent>
       </Card>
 
-      {/* Вводные данные компании */}
-      {audit.company.inputData && audit.company.inputData.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Вводные данные компании</CardTitle>
-            <CardDescription>Скрипты, регламенты и доступы для проверки</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            {audit.company.inputData
-              .filter((data: any) => !data.questionnaireId || data.questionnaireId === audit.version.questionnaire.id)
-              .map((data: any) => (
-                <div key={data.id}>
-                  <Label className="text-muted-foreground">{data.fieldName}</Label>
-                  <p className="font-medium whitespace-pre-wrap">{data.fieldValue}</p>
-                </div>
-              ))}
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Вводные данные менеджера */}
-      {audit.manager?.inputData && audit.manager.inputData.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Вводные данные менеджера</CardTitle>
-            <CardDescription>
-              Персональные скрипты и доступы
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {audit.manager.inputData.map((data: any) => (
-              <div key={data.id} className="space-y-2">
-                <Label className="font-semibold">{data.fieldName}</Label>
-                <div className="p-3 bg-muted rounded-md whitespace-pre-wrap">
-                  {data.fieldValue}
-                </div>
-              </div>
-            ))}
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Вводные данные компании */}
-      {(() => {
-        const relevantInputData = audit.company.inputData.filter(
-          data => !data.questionnaireId || data.questionnaireId === audit.version.questionnaire.id
-        );
-        
-        if (relevantInputData.length === 0) return null;
-        
-        return (
-          <Card>
-            <CardHeader>
-              <CardTitle>Вводные данные компании</CardTitle>
-              <CardDescription>
-                Скрипты, регламенты и доступы для проверки
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {relevantInputData.map((data) => (
-                <div key={data.id} className="space-y-2">
-                  <Label className="font-semibold">{data.fieldName}</Label>
-                  <div className="p-3 bg-muted rounded-md whitespace-pre-wrap">
-                    {data.fieldValue}
-                  </div>
-                </div>
-              ))}
-            </CardContent>
-          </Card>
-        );
-      })()}
-
-      <div className="space-y-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
+        <div className="lg:col-span-2 space-y-6">
         {/* Информация о сделке (метаданные) */}
         {audit.version.metadataFields && audit.version.metadataFields.length > 0 && (
           <Card>
@@ -567,6 +496,7 @@ export default function AuditPage() {
                 <div key={field.id} className="space-y-2">
                   <Label htmlFor={field.id}>
                     {field.fieldName}
+                    {(field as any).isRequired && <span className="text-red-500 ml-1">*</span>}
                   </Label>
                   {field.fieldType === 'text' && (
                     <Input
@@ -837,6 +767,61 @@ export default function AuditPage() {
           )}
         </div>
       </div>
+      
+      <div className="space-y-6 lg:sticky lg:top-4">
+        {/* Вводные данные компании */}
+        {(() => {
+          const relevantInputData = audit.company.inputData.filter(
+            (data: any) => !data.questionnaireId || data.questionnaireId === audit.version.questionnaire.id
+          );
+          
+          if (relevantInputData.length === 0) return null;
+          
+          return (
+            <Card>
+              <CardHeader>
+                <CardTitle>Вводные данные компании</CardTitle>
+                <CardDescription>
+                  Скрипты, регламенты и доступы
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {relevantInputData.map((data: any) => (
+                  <div key={data.id} className="space-y-2">
+                    <Label className="font-semibold">{data.fieldName}</Label>
+                    <div className="text-sm p-3 bg-muted rounded-md whitespace-pre-wrap">
+                      {data.fieldValue}
+                    </div>
+                  </div>
+                ))}
+              </CardContent>
+            </Card>
+          );
+        })()}
+
+        {/* Вводные данные менеджера */}
+        {audit.manager?.inputData && audit.manager.inputData.length > 0 && (
+          <Card>
+            <CardHeader>
+              <CardTitle>Вводные данные менеджера</CardTitle>
+              <CardDescription>
+                Персональные скрипты и доступы
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {audit.manager.inputData.map((data: any) => (
+                <div key={data.id} className="space-y-2">
+                  <Label className="font-semibold">{data.fieldName}</Label>
+                  <div className="text-sm p-3 bg-muted rounded-md whitespace-pre-wrap">
+                    {data.fieldValue}
+                  </div>
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+        )}
+      </div>
+    </div>
         <Dialog open={isCompleteDialogOpen} onOpenChange={setIsCompleteDialogOpen}>
         <DialogContent>
           <DialogHeader>
