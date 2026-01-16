@@ -142,10 +142,14 @@ export default function AuditPage() {
       setPositiveComment(data.positiveComment || '');
       setNegativeComment(data.negativeComment || '');
       
-      // Check for draft
+      // Auto-restore draft if it has more answers
       const draft = loadAnswersDraft(params.id as string);
       if (draft && Object.keys(draft.answers).length > Object.keys(answersMap).length) {
-        setHasDraft(true);
+        setAnswers(draft.answers);
+        toast({
+          title: "Прогресс восстановлен",
+          description: "Ваши ответы были автоматически восстановлены",
+        });
       }
     } catch (err) {
       console.error('Error loading audit:', err);
@@ -400,24 +404,6 @@ export default function AuditPage() {
           </Badge>
         </div>
       </div>
-
-      {/* Draft notification */}
-      {hasDraft && (
-        <Alert>
-          <AlertCircle className="h-4 w-4" />
-          <AlertDescription className="flex items-center justify-between">
-            <span>У вас есть несохраненный прогресс. Восстановить?</span>
-            <div className="flex gap-2">
-              <Button size="sm" variant="outline" onClick={dismissDraft}>
-                Отменить
-              </Button>
-              <Button size="sm" onClick={restoreDraft}>
-                Восстановить
-              </Button>
-            </div>
-          </AlertDescription>
-        </Alert>
-      )}
 
       {/* Progress indicator */}
       <Card>
