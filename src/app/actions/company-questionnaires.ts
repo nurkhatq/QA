@@ -21,16 +21,26 @@ export async function getCompanyQuestionnaires(companyId: string) {
     },
   });
 
-  return questionnaires.map((cq) => ({
-    id: cq.id,
-    companyId: cq.companyId,
-    questionnaireId: cq.questionnaireId,
-    questionnaireName: cq.questionnaire.name,
-    questionnaireType: cq.questionnaire.type,
-    questionnaireDescription: cq.questionnaire.description,
-    isEnabled: cq.isEnabled,
-    currentVersionId: cq.questionnaire.currentVersionId, // Используем currentVersionId из анкеты
-    createdAt: cq.createdAt,
+  return await Promise.all(questionnaires.map(async (cq) => {
+    let questionCount = 0;
+    if (cq.questionnaire.currentVersionId) {
+      questionCount = await prisma.question.count({
+        where: { versionId: cq.questionnaire.currentVersionId }
+      });
+    }
+
+    return {
+      id: cq.id,
+      companyId: cq.companyId,
+      questionnaireId: cq.questionnaireId,
+      questionnaireName: cq.questionnaire.name,
+      questionnaireType: cq.questionnaire.type,
+      questionnaireDescription: cq.questionnaire.description,
+      isEnabled: cq.isEnabled,
+      currentVersionId: cq.questionnaire.currentVersionId,
+      createdAt: cq.createdAt,
+      questionCount,
+    };
   }));
 }
 
