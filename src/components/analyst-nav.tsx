@@ -3,11 +3,12 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { signOut } from 'next-auth/react';
-import { ClipboardList, LogOut } from 'lucide-react';
+import { ClipboardList, LogOut, Building2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 
 const navigation = [
+  { name: 'Компании', href: '/analyst/companies', icon: Building2 },
   { name: 'Мои аудиты', href: '/analyst/audits', icon: ClipboardList },
 ];
 

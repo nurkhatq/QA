@@ -517,18 +517,8 @@ export default function AuditPage() {
                 disabled={isActionDisabled}
               />
               
-              {/* Manager Input Data Section */}
-              {audit.manager && audit.manager.inputData && audit.manager.inputData.length > 0 && (
-                 <div className="space-y-4 pt-4 border-t">
-                   <h4 className="font-medium text-sm text-muted-foreground">Вводные данные менеджера</h4>
-                   {audit.manager.inputData.map((data: any) => (
-                     <div key={data.id} className="grid grid-cols-3 gap-2 text-sm">
-                       <span className="font-medium text-muted-foreground">{data.fieldName}:</span>
-                       <span className="col-span-2">{data.fieldValue}</span>
-                     </div>
-                   ))}
-                 </div>
-              )}
+              {/* Manager Input Data Section Removed as requested - it's visible in sidebar/right panel if needed or not required here */}
+              
               {audit.version.metadataFields.map((field) => (
                 <div key={field.id} className="space-y-2">
                   <Label htmlFor={field.id}>
