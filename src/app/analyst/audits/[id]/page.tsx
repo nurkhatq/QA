@@ -12,6 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { ArrowLeft, Save, CheckCircle, Loader2, AlertCircle } from 'lucide-react';
 import Link from 'next/link';
+import { ManagerSelect } from '@/components/manager-select';
 import { FullPageSpinner } from '@/components/spinner';
 import { FullPageError } from '@/components/error-card';
 import { useToast } from '@/hooks/use-toast';
@@ -43,7 +44,10 @@ interface Question {
 interface Audit {
   id: string;
   status: string;
+  companyId: string; // Add companyId if standard, or just rely on company.id
+  managerId?: string | null;
   company: { 
+    id: string;
     name: string;
     inputData: Array<{
       id: string;
@@ -54,6 +58,7 @@ interface Audit {
     }>;
   };
   manager?: { 
+    id: string;
     name: string;
     inputData: Array<{
       id: string;
@@ -480,11 +485,49 @@ export default function AuditPage() {
               <CardDescription>Заполните данные о проверяемом взаимодействии</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              {audit.manager && (
-                <div className="space-y-2">
-                  <Label>Менеджер</Label>
-                  <Input value={audit.manager.name} disabled className="bg-muted" />
-                </div>
+              <ManagerSelect
+                companyId={audit.company.id}
+                selectedManagerId={audit.managerId || undefined}
+                onSelect={async (managerId) => {
+                  try {
+                    // Update audit with selected manager
+                    const response = await fetch(`/api/audits/${audit.id}/manager`, {
+                      method: 'PUT',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ managerId }),
+                    });
+                    
+                    if (!response.ok) throw new Error('Failed to update manager');
+                    
+                    const updatedAudit = await response.json();
+                    
+                    // Force refresh to get updated manager and input data
+                    // In a perfect world we'd update state locally + fetch manager input data
+                    // For now, refreshing is safer to ensure all data (including new input data sections) is correct
+                    window.location.reload(); 
+                  } catch (error) {
+                    console.error('Error updating manager:', error);
+                    toast({
+                      title: 'Ошибка',
+                      description: 'Не удалось обновить менеджера',
+                      variant: 'destructive',
+                    });
+                  }
+                }}
+                disabled={isActionDisabled}
+              />
+              
+              {/* Manager Input Data Section */}
+              {audit.manager && audit.manager.inputData && audit.manager.inputData.length > 0 && (
+                 <div className="space-y-4 pt-4 border-t">
+                   <h4 className="font-medium text-sm text-muted-foreground">Вводные данные менеджера</h4>
+                   {audit.manager.inputData.map((data: any) => (
+                     <div key={data.id} className="grid grid-cols-3 gap-2 text-sm">
+                       <span className="font-medium text-muted-foreground">{data.fieldName}:</span>
+                       <span className="col-span-2">{data.fieldValue}</span>
+                     </div>
+                   ))}
+                 </div>
               )}
               {audit.version.metadataFields.map((field) => (
                 <div key={field.id} className="space-y-2">
