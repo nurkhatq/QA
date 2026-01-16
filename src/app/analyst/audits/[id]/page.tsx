@@ -171,7 +171,13 @@ export default function AuditPage() {
   useEffect(() => {
     if (!audit || !audit.version.metadataFields) return;
     
-    const today = new Date().toISOString().split('T')[0];
+    // Use local date instead of UTC
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const day = String(now.getDate()).padStart(2, '0');
+    const today = `${year}-${month}-${day}`;
+    
     const newMetadata = { ...metadata };
     let hasChanges = false;
     
@@ -575,88 +581,90 @@ export default function AuditPage() {
                       {question.subitems.map((subitem) => (
                         <div key={subitem.id} className="space-y-2">
                           <Label>{subitem.text}</Label>
-                          <div className="grid grid-cols-2 gap-4">
-                            <div className="flex flex-wrap gap-2">
-                              {audit.version.questionnaire.scale.values.map((scaleValue) => {
-                                const isSelected = answers[subitem.id]?.score === scaleValue.value;
-                                const buttonVariant = isSelected ? 'default' : 'outline';
-                                let buttonColor = '';
-                                
-                                // Цвета в зависимости от значения
-                                if (scaleValue.value === 1) {
-                                  buttonColor = isSelected ? 'bg-green-600 hover:bg-green-700 text-white' : 'border-green-600 text-green-600 hover:bg-green-50';
-                                } else if (scaleValue.value === 0.5) {
-                                  buttonColor = isSelected ? 'bg-yellow-600 hover:bg-yellow-700 text-white' : 'border-yellow-600 text-yellow-600 hover:bg-yellow-50';
-                                } else if (scaleValue.value === 0) {
-                                  buttonColor = isSelected ? 'bg-red-600 hover:bg-red-700 text-white' : 'border-red-600 text-red-600 hover:bg-red-50';
-                                }
-                                
-                                return (
-                                  <Button
-                                    key={scaleValue.value}
-                                    type="button"
-                                    variant={buttonVariant}
-                                    size="sm"
-                                    onClick={() => handleScoreChange(subitem.id, scaleValue.value)}
-                                    disabled={isActionDisabled}
-                                    className={buttonColor}
-                                  >
-                                    {scaleValue.label}
-                                  </Button>
-                                );
-                              })}
-                            </div>
-                            <Textarea
-                              placeholder="Комментарий (необязательно)"
-                              value={answers[subitem.id]?.comment || ''}
-                              onChange={(e) => handleCommentChange(subitem.id, e.target.value)}
-                              rows={2}
-                              disabled={isActionDisabled}
-                            />
-                          </div>
+                          <div className="flex flex-col lg:flex-row gap-4 items-start">
+                             <div className="flex flex-wrap gap-2 min-w-fit">
+                               {audit.version.questionnaire.scale.values.map((scaleValue) => {
+                                 const isSelected = answers[subitem.id]?.score === scaleValue.value;
+                                 const buttonVariant = isSelected ? 'default' : 'outline';
+                                 let buttonColor = '';
+                                 
+                                 // Цвета в зависимости от значения
+                                 if (scaleValue.value === 1) {
+                                   buttonColor = isSelected ? 'bg-green-600 hover:bg-green-700 text-white' : 'border-green-600 text-green-600 hover:bg-green-50';
+                                 } else if (scaleValue.value === 0.5) {
+                                   buttonColor = isSelected ? 'bg-yellow-600 hover:bg-yellow-700 text-white' : 'border-yellow-600 text-yellow-600 hover:bg-yellow-50';
+                                 } else if (scaleValue.value === 0) {
+                                   buttonColor = isSelected ? 'bg-red-600 hover:bg-red-700 text-white' : 'border-red-600 text-red-600 hover:bg-red-50';
+                                 }
+                                 
+                                 return (
+                                   <Button
+                                     key={scaleValue.value}
+                                     type="button"
+                                     variant={buttonVariant}
+                                     size="sm"
+                                     onClick={() => handleScoreChange(subitem.id, scaleValue.value)}
+                                     disabled={isActionDisabled}
+                                     className={buttonColor}
+                                   >
+                                     {scaleValue.label}
+                                   </Button>
+                                 );
+                               })}
+                             </div>
+                             <Textarea
+                               placeholder="Комментарий (необязательно)"
+                               value={answers[subitem.id]?.comment || ''}
+                               onChange={(e) => handleCommentChange(subitem.id, e.target.value)}
+                               rows={2} // Reduced rows to align better with buttons
+                               className="min-h-[40px] flex-1" // Allow it to shrink/grow properly
+                               disabled={isActionDisabled}
+                             />
+                           </div>
                         </div>
                       ))}
                     </div>
                   ) : (
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="flex flex-wrap gap-2">
-                        {audit.version.questionnaire.scale.values.map((scaleValue) => {
-                          const isSelected = answers[question.id]?.score === scaleValue.value;
-                          const buttonVariant = isSelected ? 'default' : 'outline';
-                          let buttonColor = '';
-                          
-                          // Цвета в зависимости от значения
-                          if (scaleValue.value === 1) {
-                            buttonColor = isSelected ? 'bg-green-600 hover:bg-green-700 text-white' : 'border-green-600 text-green-600 hover:bg-green-50';
-                          } else if (scaleValue.value === 0.5) {
-                            buttonColor = isSelected ? 'bg-yellow-600 hover:bg-yellow-700 text-white' : 'border-yellow-600 text-yellow-600 hover:bg-yellow-50';
-                          } else if (scaleValue.value === 0) {
-                            buttonColor = isSelected ? 'bg-red-600 hover:bg-red-700 text-white' : 'border-red-600 text-red-600 hover:bg-red-50';
-                          }
-                          
-                          return (
-                            <Button
-                              key={scaleValue.value}
-                              type="button"
-                              variant={buttonVariant}
-                              size="sm"
-                              onClick={() => handleScoreChange(question.id, scaleValue.value)}
-                              disabled={isActionDisabled}
-                              className={buttonColor}
-                            >
-                              {scaleValue.label}
-                            </Button>
-                          );
-                        })}
-                      </div>
-                      <Textarea
-                        placeholder="Комментарий (необязательно)"
-                        value={answers[question.id]?.comment || ''}
-                        onChange={(e) => handleCommentChange(question.id, e.target.value)}
-                        rows={2}
-                        disabled={isActionDisabled}
-                      />
-                    </div>
+                    <div className="flex flex-col lg:flex-row gap-4 items-start">
+                       <div className="flex flex-wrap gap-2 min-w-fit">
+                         {audit.version.questionnaire.scale.values.map((scaleValue) => {
+                           const isSelected = answers[question.id]?.score === scaleValue.value;
+                           const buttonVariant = isSelected ? 'default' : 'outline';
+                           let buttonColor = '';
+                           
+                           // Цвета в зависимости от значения
+                           if (scaleValue.value === 1) {
+                             buttonColor = isSelected ? 'bg-green-600 hover:bg-green-700 text-white' : 'border-green-600 text-green-600 hover:bg-green-50';
+                           } else if (scaleValue.value === 0.5) {
+                             buttonColor = isSelected ? 'bg-yellow-600 hover:bg-yellow-700 text-white' : 'border-yellow-600 text-yellow-600 hover:bg-yellow-50';
+                           } else if (scaleValue.value === 0) {
+                             buttonColor = isSelected ? 'bg-red-600 hover:bg-red-700 text-white' : 'border-red-600 text-red-600 hover:bg-red-50';
+                           }
+                           
+                           return (
+                             <Button
+                               key={scaleValue.value}
+                               type="button"
+                               variant={buttonVariant}
+                               size="sm"
+                               onClick={() => handleScoreChange(question.id, scaleValue.value)}
+                               disabled={isActionDisabled}
+                               className={buttonColor}
+                             >
+                               {scaleValue.label}
+                             </Button>
+                           );
+                         })}
+                       </div>
+                       <Textarea
+                         placeholder="Комментарий (необязательно)"
+                         value={answers[question.id]?.comment || ''}
+                         onChange={(e) => handleCommentChange(question.id, e.target.value)}
+                         rows={2} // Reduced rows
+                         className="min-h-[40px] flex-1" // Allow shrink/grow
+                         disabled={isActionDisabled}
+                       />
+                     </div>
                   )}
                 </div>
               ))}
