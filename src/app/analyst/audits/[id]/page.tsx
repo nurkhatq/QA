@@ -5,9 +5,11 @@ import { useParams, useRouter } from 'next/navigation';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
+import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { ArrowLeft, Save, CheckCircle, Loader2, AlertCircle } from 'lucide-react';
 import Link from 'next/link';
 import { FullPageSpinner } from '@/components/spinner';
@@ -303,6 +305,17 @@ export default function AuditPage() {
         throw new Error('Не удалось сохранить комментарии');
       }
 
+      // Сохраняем metadata
+      const metadataResponse = await fetch(`/api/audits/${audit.id}/metadata`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ metadata }),
+      });
+
+      if (!metadataResponse.ok) {
+        throw new Error('Не удалось сохранить информацию о сделке');
+      }
+
       toast({
         title: 'Успешно сохранено',
         description: 'Аудит успешно сохранён',
@@ -435,34 +448,6 @@ export default function AuditPage() {
         </CardContent>
       </Card>
 
-      {/* Информация об аудите */}
-      {(audit.manager || (audit.metadata && Object.keys(audit.metadata).length > 0)) && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Информация об аудите</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {audit.manager && (
-              <div>
-                <Label className="text-muted-foreground">Менеджер</Label>
-                <p className="font-medium">{audit.manager.name}</p>
-              </div>
-            )}
-            {audit.metadata && Object.keys(audit.metadata).length > 0 && (
-              <div className="space-y-3 pt-2 border-t">
-                <h4 className="font-semibold">Вводные данные аудита</h4>
-                {audit.version.metadataFields.map((field) => (
-                  <div key={field.id}>
-                    <Label className="text-muted-foreground">{field.fieldName}</Label>
-                    <p className="font-medium">{audit.metadata?.[field.id] || '-'}</p>
-                  </div>
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      )}
-
       {/* Вводные данные компании */}
       {audit.company.inputData && audit.company.inputData.length > 0 && (
         <Card>
@@ -536,6 +521,88 @@ export default function AuditPage() {
       })()}
 
       <div className="space-y-6">
+        {/* Информация о сделке (метаданные) */}
+        {audit.version.metadataFields && audit.version.metadataFields.length > 0 && (
+          <Card>
+            <CardHeader>
+              <CardTitle>Информация о сделке</CardTitle>
+              <CardDescription>Заполните данные о проверяемом взаимодействии</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {audit.version.metadataFields.map((field) => (
+                <div key={field.id} className="space-y-2">
+                  <Label htmlFor={field.id}>
+                    {field.fieldName}
+                  </Label>
+                  {field.fieldType === 'text' && (
+                    <Input
+                      id={field.id}
+                      value={metadata[field.id] || ''}
+                      onChange={(e) => setMetadata({ ...metadata, [field.id]: e.target.value })}
+                      placeholder={`Введите ${field.fieldName.toLowerCase()}`}
+                      disabled={isActionDisabled}
+                    />
+                  )}
+                  {field.fieldType === 'date' && (
+                    <Input
+                      id={field.id}
+                      type="date"
+                      value={metadata[field.id] || ''}
+                      onChange={(e) => setMetadata({ ...metadata, [field.id]: e.target.value })}
+                      disabled={isActionDisabled}
+                    />
+                  )}
+                  {field.fieldType === 'url' && (
+                    <Input
+                      id={field.id}
+                      type="url"
+                      value={metadata[field.id] || ''}
+                      onChange={(e) => setMetadata({ ...metadata, [field.id]: e.target.value })}
+                      placeholder="https://..."
+                      disabled={isActionDisabled}
+                    />
+                  )}
+                  {field.fieldType === 'number' && (
+                    <Input
+                      id={field.id}
+                      type="number"
+                      value={metadata[field.id] || ''}
+                      onChange={(e) => setMetadata({ ...metadata, [field.id]: e.target.value })}
+                      placeholder="0"
+                      disabled={isActionDisabled}
+                    />
+                  )}
+                  {field.fieldType === 'textarea' && (
+                    <Textarea
+                      id={field.id}
+                      value={metadata[field.id] || ''}
+                      onChange={(e) => setMetadata({ ...metadata, [field.id]: e.target.value })}
+                      placeholder={`Введите ${field.fieldName.toLowerCase()}`}
+                      rows={3}
+                      disabled={isActionDisabled}
+                    />
+                  )}
+                  {field.fieldType === 'radio' && (field as any).options && (
+                    <RadioGroup
+                       value={metadata[field.id] || ''}
+                       onValueChange={(value) => setMetadata({ ...metadata, [field.id]: value })}
+                       className="flex flex-col space-y-2"
+                       disabled={isActionDisabled}
+                    >
+                      {(field as any).options.split(';').map((option: string) => (
+                        <div key={option} className="flex items-center space-x-2">
+                          <RadioGroupItem value={option} id={`${field.id}-${option}`} disabled={isActionDisabled} />
+                          <Label htmlFor={`${field.id}-${option}`}>{option}</Label>
+                        </div>
+                      ))}
+                    </RadioGroup>
+                  )}
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+        )}
+
         {Object.entries(groupedQuestions).map(([category, questions]) => (
           <Card key={category}>
             <CardHeader>
