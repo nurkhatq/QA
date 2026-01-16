@@ -190,6 +190,80 @@ export default function CompanyDetailPage({ params }: { params: { id: string } }
     }
   }
 
+  async function handleSaveInputData() {
+    setSaving(true);
+    try {
+      const res = await fetch(`/api/admin/companies/${params.id}/input-data`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ fields: inputData }),
+      });
+
+      if (res.ok) {
+        toast({
+          title: "Успешно",
+          description: "Вводные данные сохранены",
+        });
+        loadData();
+      } else {
+        throw new Error('Ошибка при сохранении');
+      }
+    } catch (error) {
+      console.error('Error saving:', error);
+      toast({
+        title: "Ошибка",
+        description: "Не удалось сохранить вводные данные",
+        variant: "destructive",
+      });
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleAddManager() {
+    if (!newManagerName.trim()) {
+      toast({
+        title: "Ошибка",
+        description: "Введите имя менеджера",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setSaving(true);
+    try {
+      const res = await fetch(`/api/admin/companies/${params.id}/managers`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          name: newManagerName,
+          email: newManagerEmail || null // Send email
+        }),
+      });
+
+      if (res.ok) {
+        setNewManagerName('');
+        setNewManagerEmail('');
+        toast({
+          title: "Успешно",
+          description: "Менеджер добавлен",
+        });
+        loadData();
+      } else {
+        throw new Error('Ошибка при добавлении менеджера');
+      }
+    } catch (error) {
+      console.error('Error adding manager:', error);
+      toast({
+        title: "Ошибка",
+        description: "Не удалось добавить менеджера",
+        variant: "destructive",
+      });
+    } finally {
+      setSaving(false);
+    }
+  }
+
   async function handleToggleQuestionnaire(questionnaireId: string) {
      try {
        const res = await fetch(`/api/admin/companies/${params.id}/questionnaires`, {
