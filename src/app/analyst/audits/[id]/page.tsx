@@ -309,6 +309,16 @@ export default function AuditPage() {
       return;
     }
 
+    // Validate Manager Selection
+    if (!audit.managerId && !audit.manager) {
+      toast({
+        title: 'Ошибка',
+        description: 'Выберите менеджера для сохранения аудита',
+        variant: 'destructive',
+      });
+      return;
+    }
+
     setIsSaving(true);
     try {
       // Сохраняем ответы
@@ -754,6 +764,16 @@ export default function AuditPage() {
           </Button>
           {audit.status === 'DRAFT' && (
             <Button onClick={() => {
+              // Validate Manager first
+              if (!audit.managerId && !audit.manager) {
+                toast({
+                  title: 'Ошибка',
+                  description: 'Выберите менеджера для завершения аудита',
+                  variant: 'destructive',
+                });
+                return;
+              }
+
               // Проверка, что на все вопросы даны ответы
               const unanswered: string[] = [];
               audit.version.questions.forEach(q => {
