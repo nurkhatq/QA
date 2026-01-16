@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -8,11 +8,13 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { ArrowLeft, Save, CheckCircle, Loader2 } from 'lucide-react';
+import { ArrowLeft, Save, CheckCircle, Loader2, AlertCircle } from 'lucide-react';
 import Link from 'next/link';
 import { FullPageSpinner } from '@/components/spinner';
 import { FullPageError } from '@/components/error-card';
 import { useToast } from '@/hooks/use-toast';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Progress } from '@/components/ui/progress';
 import {
   Dialog,
   DialogContent,
@@ -21,6 +23,11 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  saveAnswersDraft,
+  loadAnswersDraft,
+  clearAnswersDraft,
+} from '@/lib/draft-manager';
 
 interface Question {
   id: string;
@@ -95,6 +102,12 @@ export default function AuditPage() {
   const [isSaving, setIsSaving] = useState(false);
   const [isCompleting, setIsCompleting] = useState(false);
   const [isCompleteDialogOpen, setIsCompleteDialogOpen] = useState(false);
+  const [hasDraft, setHasDraft] = useState(false);
+  const [lastSaved, setLastSaved] = useState<number | null>(null);
+  const [progress, setProgress] = useState(0);
+  
+  const autoSaveTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const saveDebounceTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
     loadAudit();
@@ -128,6 +141,12 @@ export default function AuditPage() {
       setAnswers(answersMap);
       setPositiveComment(data.positiveComment || '');
       setNegativeComment(data.negativeComment || '');
+      
+      // Check for draft
+      const draft = loadAnswersDraft(params.id as string);
+      if (draft && Object.keys(draft.answers).length > Object.keys(answersMap).length) {
+        setHasDraft(true);
+      }
     } catch (err) {
       console.error('Error loading audit:', err);
       setError(err instanceof Error ? err.message : 'Произошла ошибка при загрузке');
@@ -135,6 +154,86 @@ export default function AuditPage() {
       setLoading(false);
     }
   }
+
+  // Calculate progress
+  useEffect(() => {
+    if (!audit) return;
+    
+    const totalQuestions = audit.version.questions.reduce((sum, q) => {
+      if (q.hasSubitems && q.subitems) {
+        return sum + q.subitems.length;
+      }
+      return sum + 1;
+    }, 0);
+    
+    const answeredQuestions = Object.values(answers).filter(a => a.score !== null).length;
+    const progressPercent = totalQuestions > 0 ? Math.round((answeredQuestions / totalQuestions) * 100) : 0;
+    setProgress(progressPercent);
+  }, [answers, audit]);
+
+  // Auto-save draft
+  const saveCurrentDraft = useCallback(() => {
+    if (!audit || !params.id) return;
+    
+    saveAnswersDraft(params.id as string, answers);
+    setLastSaved(Date.now());
+  }, [audit, params.id, answers]);
+
+  // Debounced save on answer change
+  useEffect(() => {
+    if (saveDebounceTimerRef.current) {
+      clearTimeout(saveDebounceTimerRef.current);
+    }
+    
+    if (Object.keys(answers).length > 0) {
+      saveDebounceTimerRef.current = setTimeout(() => {
+        saveCurrentDraft();
+      }, 2000); // 2 seconds
+    }
+    
+    return () => {
+      if (saveDebounceTimerRef.current) {
+        clearTimeout(saveDebounceTimerRef.current);
+      }
+    };
+  }, [answers, saveCurrentDraft]);
+
+  // Auto-save timer (every 30 seconds)
+  useEffect(() => {
+    if (autoSaveTimerRef.current) {
+      clearTimeout(autoSaveTimerRef.current);
+    }
+    
+    if (Object.keys(answers).length > 0) {
+      autoSaveTimerRef.current = setTimeout(() => {
+        saveCurrentDraft();
+      }, 30000); // 30 seconds
+    }
+    
+    return () => {
+      if (autoSaveTimerRef.current) {
+        clearTimeout(autoSaveTimerRef.current);
+      }
+    };
+  }, [answers, saveCurrentDraft]);
+
+  // Restore draft
+  const restoreDraft = useCallback(() => {
+    const draft = loadAnswersDraft(params.id as string);
+    if (draft) {
+      setAnswers(draft.answers);
+      setHasDraft(false);
+      toast({
+        title: "Прогресс восстановлен",
+        description: "Ваши ответы были восстановлены",
+      });
+    }
+  }, [params.id, toast]);
+
+  const dismissDraft = useCallback(() => {
+    clearAnswersDraft(params.id as string);
+    setHasDraft(false);
+  }, [params.id]);
 
   const handleScoreChange = (key: string, score: number | null) => {
     setAnswers((prev) => ({
@@ -236,6 +335,9 @@ export default function AuditPage() {
         title: 'Аудит завершён',
         description: 'Аудит успешно завершён и отправлен компании',
       });
+      
+      // Clear draft
+      clearAnswersDraft(params.id as string);
 
       router.push('/analyst/audits');
     } catch (err) {
@@ -298,6 +400,48 @@ export default function AuditPage() {
           </Badge>
         </div>
       </div>
+
+      {/* Draft notification */}
+      {hasDraft && (
+        <Alert>
+          <AlertCircle className="h-4 w-4" />
+          <AlertDescription className="flex items-center justify-between">
+            <span>У вас есть несохраненный прогресс. Восстановить?</span>
+            <div className="flex gap-2">
+              <Button size="sm" variant="outline" onClick={dismissDraft}>
+                Отменить
+              </Button>
+              <Button size="sm" onClick={restoreDraft}>
+                Восстановить
+              </Button>
+            </div>
+          </AlertDescription>
+        </Alert>
+      )}
+
+      {/* Progress indicator */}
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle>Прогресс оценки</CardTitle>
+              <CardDescription>
+                {Object.values(answers).filter(a => a.score !== null).length} / {audit.version.questions.reduce((sum, q) => q.hasSubitems && q.subitems ? sum + q.subitems.length : sum + 1, 0)} вопросов
+                {lastSaved && (
+                  <span className="flex items-center gap-1 text-xs text-green-600 mt-1">
+                    <Save className="h-3 w-3" />
+                    Сохранено {new Date(lastSaved).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}
+                  </span>
+                )}
+              </CardDescription>
+            </div>
+            <div className="text-2xl font-bold">{progress}%</div>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <Progress value={progress} className="h-3" />
+        </CardContent>
+      </Card>
 
       {/* Информация об аудите */}
       {(audit.manager || (audit.metadata && Object.keys(audit.metadata).length > 0)) && (

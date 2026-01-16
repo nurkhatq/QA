@@ -253,7 +253,7 @@ export default function NewAuditPage() {
     setCurrentStep('manager');
   }
 
-  function handleManagerSelect(manager: Manager | null) {
+  function handleManagerSelect(manager: Manager) {
     setSelectedManager(manager);
     setCurrentStep('questionnaire');
   }
@@ -485,14 +485,6 @@ export default function NewAuditPage() {
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
             />
-            
-            <Button
-              variant="outline"
-              className="w-full"
-              onClick={() => handleManagerSelect(null)}
-            >
-              Пропустить - без менеджера
-            </Button>
             
             {isLoading ? (
               <div className="flex justify-center py-8">
