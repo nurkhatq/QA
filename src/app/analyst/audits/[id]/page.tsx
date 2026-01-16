@@ -448,7 +448,11 @@ export default function AuditPage() {
           </Link>
           <div>
             <h1 className="text-3xl font-bold">Аудит: {audit.company.name}</h1>
-            <p className="text-muted-foreground">{audit.version.questionnaire.name}</p>
+            <div className="flex items-center gap-2 text-muted-foreground">
+              <p>{audit.version.questionnaire.name}</p>
+              <span>•</span>
+              <p>Менеджер: {audit.manager?.name || 'Не указан'}</p>
+            </div>
           </div>
         </div>
         <div className="flex gap-2">
@@ -458,29 +462,7 @@ export default function AuditPage() {
         </div>
       </div>
 
-      {/* Progress indicator */}
-      <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <div>
-              <CardTitle>Прогресс оценки</CardTitle>
-              <CardDescription>
-                {Object.values(answers).filter(a => a.score !== null).length} / {audit.version.questions.reduce((sum, q) => q.hasSubitems && q.subitems ? sum + q.subitems.length : sum + 1, 0)} вопросов
-                {lastSaved && (
-                  <span className="flex items-center gap-1 text-xs text-green-600 mt-1">
-                    <Save className="h-3 w-3" />
-                    Сохранено {new Date(lastSaved).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}
-                  </span>
-                )}
-              </CardDescription>
-            </div>
-            <div className="text-2xl font-bold">{progress}%</div>
-          </div>
-        </CardHeader>
-        <CardContent>
-          <Progress value={progress} className="h-3" />
-        </CardContent>
-      </Card>
+
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
         <div className="lg:col-span-2 space-y-6">
@@ -492,6 +474,12 @@ export default function AuditPage() {
               <CardDescription>Заполните данные о проверяемом взаимодействии</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
+              {audit.manager && (
+                <div className="space-y-2">
+                  <Label>Менеджер</Label>
+                  <Input value={audit.manager.name} disabled className="bg-muted" />
+                </div>
+              )}
               {audit.version.metadataFields.map((field) => (
                 <div key={field.id} className="space-y-2">
                   <Label htmlFor={field.id}>
