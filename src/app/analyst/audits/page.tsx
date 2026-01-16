@@ -6,6 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import Link from 'next/link';
 import { Plus } from 'lucide-react';
 import { formatDateTime } from '@/lib/utils';
+import { ClientDate } from '@/components/ui/client-date';
 
 const statusLabels = {
   DRAFT: { label: 'Черновик', variant: 'secondary' as const },
@@ -55,7 +56,9 @@ export default async function AuditsPage() {
                   <TableCell className="font-medium">{audit.company.name}</TableCell>
                   <TableCell>{audit.manager?.name || '—'}</TableCell>
                   <TableCell>{audit.version.questionnaire.name}</TableCell>
-                  <TableCell>{formatDateTime(audit.auditDate)}</TableCell>
+                  <TableCell>
+                    <ClientDate date={audit.auditDate} />
+                  </TableCell>
                   <TableCell>
                     <Badge variant={statusLabels[audit.status].variant}>
                       {statusLabels[audit.status].label}
