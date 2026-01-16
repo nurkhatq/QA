@@ -10,7 +10,9 @@ import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
-import { ArrowLeft, Plus, Trash2, Save, Database } from 'lucide-react';
+import { ArrowLeft, Plus, Trash2, Save, Database, Pencil } from 'lucide-react';
+
+
 import Link from 'next/link';
 import { formatDate } from '@/lib/utils';
 import { getCompanyAnalysts, assignAnalystToCompany, removeAnalystFromCompany } from '@/app/actions/company-analysts';
@@ -108,6 +110,7 @@ export default function CompanyDetailPage({ params }: { params: { id: string } }
 
   // Вводные данные менеджера
   const [selectedManagerIdForData, setSelectedManagerIdForData] = useState<string | null>(null);
+  const [editingManager, setEditingManager] = useState<{ id: string; name: string; email: string } | null>(null);
   const [managerInputData, setManagerInputData] = useState<Array<{
     fieldName: string;
     fieldValue: string;
@@ -393,6 +396,42 @@ export default function CompanyDetailPage({ params }: { params: { id: string } }
        setAnalystToRemove(null);
      }
    }
+
+    async function handleUpdateManager() {
+      if (!editingManager || !editingManager.name.trim()) return;
+  
+      setSaving(true);
+      try {
+        const res = await fetch(`/api/admin/companies/${params.id}/managers/${editingManager.id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            name: editingManager.name,
+            email: editingManager.email || null,
+          }),
+        });
+  
+        if (res.ok) {
+          toast({
+            title: "Успешно",
+            description: "Данные менеджера обновлены",
+          });
+          setEditingManager(null);
+          loadData();
+        } else {
+          throw new Error('Ошибка при обновлении');
+        }
+      } catch (error) {
+        console.error('Error updating manager:', error);
+        toast({
+          title: "Ошибка",
+          description: "Не удалось обновить менеджера",
+          variant: "destructive",
+        });
+      } finally {
+        setSaving(false);
+      }
+    }
 
     async function handleOpenManagerData(managerId: string) {
       setSelectedManagerIdForData(managerId);
@@ -686,6 +725,14 @@ export default function CompanyDetailPage({ params }: { params: { id: string } }
                   <Button
                     variant="ghost"
                     size="sm"
+                    onClick={() => setEditingManager({ id: manager.id, name: manager.name, email: manager.email || '' })}
+                    title="Редактировать"
+                  >
+                    <Pencil className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
                     onClick={() => handleOpenManagerData(manager.id)}
                     title="Вводные данные"
                   >
@@ -870,6 +917,34 @@ export default function CompanyDetailPage({ params }: { params: { id: string } }
           <DialogFooter>
             <Button variant="outline" onClick={() => setAnalystToRemove(null)}>Отмена</Button>
             <Button variant="destructive" onClick={proceedRemoveAnalyst} disabled={saving}>Убрать доступ</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!editingManager} onOpenChange={(open) => !open && setEditingManager(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Редактировать менеджера</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div>
+              <Label>ФИО</Label>
+              <Input
+                value={editingManager?.name || ''}
+                onChange={(e) => setEditingManager(prev => prev ? { ...prev, name: e.target.value } : null)}
+              />
+            </div>
+            <div>
+              <Label>Email</Label>
+              <Input
+                value={editingManager?.email || ''}
+                onChange={(e) => setEditingManager(prev => prev ? { ...prev, email: e.target.value } : null)}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditingManager(null)}>Отмена</Button>
+            <Button onClick={handleUpdateManager} disabled={saving}>Сохранить</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
