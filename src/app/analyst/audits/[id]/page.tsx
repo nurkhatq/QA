@@ -167,6 +167,26 @@ export default function AuditPage() {
     }
   }
 
+  // Auto-fill date fields with today's date
+  useEffect(() => {
+    if (!audit || !audit.version.metadataFields) return;
+    
+    const today = new Date().toISOString().split('T')[0];
+    const newMetadata = { ...metadata };
+    let hasChanges = false;
+    
+    audit.version.metadataFields.forEach((field) => {
+      if (field.fieldType === 'date' && !newMetadata[field.id]) {
+        newMetadata[field.id] = today;
+        hasChanges = true;
+      }
+    });
+    
+    if (hasChanges) {
+      setMetadata(newMetadata);
+    }
+  }, [audit?.version.metadataFields]);
+
   // Calculate progress
   useEffect(() => {
     if (!audit) return;
@@ -263,6 +283,20 @@ export default function AuditPage() {
 
   const handleSave = async () => {
     if (!audit) return;
+
+    // Validate required metadata fields
+    const missingMetadataFields = audit.version.metadataFields
+      .filter((field: any) => field.isRequired && !metadata[field.id])
+      .map((field: any) => field.fieldName);
+
+    if (missingMetadataFields.length > 0) {
+      toast({
+        title: 'Ошибка',
+        description: `Заполните обязательные поля: ${missingMetadataFields.join(', ')}`,
+        variant: 'destructive',
+      });
+      return;
+    }
 
     setIsSaving(true);
     try {
